@@ -54,6 +54,7 @@ extension SUAppcastItem {
 
 enum AppUpdateLoadingState : Equatable {
     case nonInited
+    case idle
     case initializing
     case loading(item:SUAppcastItem, current: Int, total: Int)
     case hasUpdate(SUAppcastItem)
@@ -154,8 +155,9 @@ private let _id_download_update: InputDataIdentifier = InputDataIdentifier("_id_
 private let _id_install_update: InputDataIdentifier = InputDataIdentifier("_id_install_update")
 private let _id_check_for_updates: InputDataIdentifier = InputDataIdentifier("_id_check_for_updates")
 private let _id_unarchiving: InputDataIdentifier = InputDataIdentifier("_id_unarchiving")
+private let _id_automatic_checks: InputDataIdentifier = InputDataIdentifier("_id_automatic_checks")
 
-private func appUpdateEntries(state: AppUpdateState) -> [InputDataEntry] {
+private func appUpdateEntries(state: AppUpdateState, automaticChecks: Bool) -> [InputDataEntry] {
     var entries: [InputDataEntry] = []
     
     var sectionId: Int32 = 0
@@ -180,6 +182,9 @@ private func appUpdateEntries(state: AppUpdateState) -> [InputDataEntry] {
         index += 1
         
         currentItem = item
+    case .idle:
+        entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_check_for_updates, data: InputDataGeneralData(name: strings().appUpdateCheckForUpdates, color: theme.colors.accent, icon: nil, type: .none, viewType: .singleItem, action: nil)))
+        index += 1
     case .initializing, .nonInited:
         entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_initializing, data: InputDataGeneralData(name: strings().appUpdateRetrievingInfo, color: theme.colors.grayText, icon: nil, type: .none, viewType: .singleItem, action: nil)))
         index += 1
@@ -224,12 +229,19 @@ private func appUpdateEntries(state: AppUpdateState) -> [InputDataEntry] {
         }))
         index += 1
     }
-    
-    
+
+
     entries.append(.sectionId(sectionId, type: .normal))
     sectionId += 1
 
-    
+    entries.append(.general(sectionId: sectionId, index: index, value: .none, error: nil, identifier: _id_automatic_checks, data: InputDataGeneralData(name: strings().appUpdateCheckAutomatically, color: theme.colors.text, icon: nil, type: .switchable(automaticChecks), viewType: .singleItem, action: {
+        setAutomaticUpdateChecks(!automaticChecks)
+    })))
+    index += 1
+
+    entries.append(.sectionId(sectionId, type: .normal))
+    sectionId += 1
+
     return entries
 }
 
@@ -237,8 +249,8 @@ private func appUpdateEntries(state: AppUpdateState) -> [InputDataEntry] {
 
 func AppUpdateViewController() -> InputDataController {
     
-    let signal: Signal<InputDataSignalValue, NoError> = statePromise.get() |> deliverOnResourceQueue |> map { value in
-        return appUpdateEntries(state: value)
+    let signal: Signal<InputDataSignalValue, NoError> = combineLatest(statePromise.get(), automaticUpdateChecksPromise.get()) |> deliverOnResourceQueue |> map { value, automaticChecks in
+        return appUpdateEntries(state: value, automaticChecks: automaticChecks)
     } |> map { InputDataSignalValue(entries: $0) }
     
 
@@ -581,6 +593,23 @@ private class ExternalUpdateDriver : SUBasicUpdateDriver {
 
 private let disposable = MetaDisposable()
 
+private let automaticUpdateChecksKey = "kAutomaticUpdateChecks"
+private let automaticUpdateChecksPromise = ValuePromise(automaticUpdateChecksEnabled, ignoreRepeated: true)
+
+var automaticUpdateChecksEnabled: Bool {
+    return UserDefaults.standard.object(forKey: automaticUpdateChecksKey) as? Bool ?? false
+}
+
+private func setAutomaticUpdateChecks(_ enabled: Bool) {
+    UserDefaults.standard.set(enabled, forKey: automaticUpdateChecksKey)
+    automaticUpdateChecksPromise.set(enabled)
+    if enabled {
+        resetUpdater()
+    } else {
+        disposable.set(nil)
+    }
+}
+
 func setAppUpdaterBaseDomain(_ domain: String?) {
     updater.domain = domain
     if let domain = domain {
@@ -594,7 +623,9 @@ func setAppUpdaterBaseDomain(_ domain: String?) {
 func crashRecoveryUpdater() -> CrashRecoveryUpdater {
     let state: Signal<CrashRecoveryUpdateState, NoError> = appUpdateStateSignal |> map { state in
         switch state.loadingState {
-        case .nonInited, .initializing:
+        case .nonInited, .idle:
+            return .idle
+        case .initializing:
             return .checking
         case let .loading(item, current, total):
             return .downloading(version: item.displayVersionString ?? "", current: current, total: total)
@@ -612,7 +643,7 @@ func crashRecoveryUpdater() -> CrashRecoveryUpdater {
             return .failed
         }
     }
-    return CrashRecoveryUpdater(state: state, check: {
+    return CrashRecoveryUpdater(state: state, checksAutomatically: automaticUpdateChecksEnabled, check: {
         updater_resetWithUpdaterSource(.external(context: nil))
     }, install: {
         if case .readyToInstall = stateValue.with({ $0.loadingState }) {
@@ -747,13 +778,17 @@ private func resetUpdater() {
         }
     
     
-        let signal: Signal<Never, NoError> = Signal { subscriber in
-            update()
-            subscriber.putCompletion()
-            return EmptyDisposable
-            } |> delay(20 * 60, queue: .mainQueue()) |> restart
-        disposable.set(signal.start())
-    
+        if automaticUpdateChecksEnabled {
+            let signal: Signal<Never, NoError> = Signal { subscriber in
+                update()
+                subscriber.putCompletion()
+                return EmptyDisposable
+                } |> delay(20 * 60, queue: .mainQueue()) |> restart
+            disposable.set(signal.start())
+        } else {
+            disposable.set(nil)
+        }
+
         update()
     #endif
     
@@ -784,6 +819,10 @@ func updater_resetWithUpdaterSource(_ source: UpdaterSource, force: Bool = true)
                 $0.withUpdatedLoadingState(.initializing)
             }
             resetUpdater()
+        }
+    } else if state.loadingState == .nonInited {
+        updateState {
+            $0.withUpdatedLoadingState(.idle)
         }
     }
 }

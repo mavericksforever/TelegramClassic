@@ -619,6 +619,8 @@ public final class L10n {
   public static var appTooltipVideoRecord: String  { return L10n.tr("Localizable", "App.Tooltip.VideoRecord") }
   /// Hold to record voice. Click to switch to video.
   public static var appTooltipVoiceRecord: String  { return L10n.tr("Localizable", "App.Tooltip.VoiceRecord") }
+  /// Check for Updates Automatically
+  public static var appUpdateCheckAutomatically: String  { return L10n.tr("Localizable", "AppUpdate.CheckAutomatically") }
   /// Check for Updates
   public static var appUpdateCheckForUpdates: String  { return L10n.tr("Localizable", "AppUpdate.CheckForUpdates") }
   /// Downloading...
@@ -7331,12 +7333,18 @@ public final class L10n {
   public static var crashRecoveryAppStoreDetail: String  { return L10n.tr("Localizable", "CrashRecovery.AppStoreDetail") }
   /// Cancel
   public static var crashRecoveryCancel: String  { return L10n.tr("Localizable", "CrashRecovery.Cancel") }
+  /// Check for Updates
+  public static var crashRecoveryCheck: String  { return L10n.tr("Localizable", "CrashRecovery.Check") }
   /// Check Again
   public static var crashRecoveryCheckAgain: String  { return L10n.tr("Localizable", "CrashRecovery.CheckAgain") }
   /// Checking for updates…
   public static var crashRecoveryChecking: String  { return L10n.tr("Localizable", "CrashRecovery.Checking") }
   /// Looking for a newer version of Telegram.
   public static var crashRecoveryCheckingDetail: String  { return L10n.tr("Localizable", "CrashRecovery.CheckingDetail") }
+  /// Automatic update checks are off
+  public static var crashRecoveryChecksOff: String  { return L10n.tr("Localizable", "CrashRecovery.ChecksOff") }
+  /// Check for a newer version of Telegram.
+  public static var crashRecoveryChecksOffDetail: String  { return L10n.tr("Localizable", "CrashRecovery.ChecksOffDetail") }
   /// Continue Anyway
   public static var crashRecoveryContinueAnyway: String  { return L10n.tr("Localizable", "CrashRecovery.ContinueAnyway") }
   /// Telegram closed right after it opened. The latest version usually fixes this.

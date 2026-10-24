@@ -1167,9 +1167,9 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                                 }
                                 setAppUpdaterBaseDomain(applicationUpdateUrlPrefix)
                                 #if STABLE || BETA || DEBUG
-                                updater_resetWithUpdaterSource(.internal(context: context.context))
+                                updater_resetWithUpdaterSource(.internal(context: context.context), force: automaticUpdateChecksEnabled)
                                 #else
-                                updater_resetWithUpdaterSource(.external(context: context.context))
+                                updater_resetWithUpdaterSource(.external(context: context.context), force: automaticUpdateChecksEnabled)
                                 #endif
                                 
                             }))
@@ -1234,12 +1234,12 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                                         setAppUpdaterBaseDomain(applicationUpdateUrlPrefix)
                                         #if STABLE
                                         if let context = self.contextValue?.context {
-                                            updater_resetWithUpdaterSource(.internal(context: context))
+                                            updater_resetWithUpdaterSource(.internal(context: context), force: automaticUpdateChecksEnabled)
                                         } else {
-                                            updater_resetWithUpdaterSource(.external(context: nil))
+                                            updater_resetWithUpdaterSource(.external(context: nil), force: automaticUpdateChecksEnabled)
                                         }
                                         #else
-                                        updater_resetWithUpdaterSource(.external(context: self.contextValue?.context))
+                                        updater_resetWithUpdaterSource(.external(context: self.contextValue?.context), force: automaticUpdateChecksEnabled)
                                         #endif
                                         
                                     }))

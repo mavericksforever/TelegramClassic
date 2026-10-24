@@ -5,6 +5,7 @@ import ColorPalette
 struct CrashRecoveryContent: Equatable {
     enum Symbol: Equatable {
         case activity
+        case check
         case download
         case ready
         case upToDate
@@ -221,6 +222,9 @@ final class CrashRecoveryView: View {
         switch symbol {
         case .activity:
             return
+        case .check:
+            names = ["arrow.clockwise.circle.fill"]
+            color = palette.accent
         case .download:
             names = ["arrow.down.circle.fill"]
             color = palette.accent

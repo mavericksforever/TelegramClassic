@@ -6,6 +6,7 @@ import KeyboardKey
 import Localization
 
 public enum CrashRecoveryUpdateState: Equatable {
+    case idle
     case checking
     case downloading(version: String, current: Int, total: Int)
     case preparing(version: String)
@@ -17,11 +18,13 @@ public enum CrashRecoveryUpdateState: Equatable {
 
 public struct CrashRecoveryUpdater {
     public let state: Signal<CrashRecoveryUpdateState, NoError>
+    public let checksAutomatically: Bool
     public let check: () -> Void
     public let install: () -> Void
 
-    public init(state: Signal<CrashRecoveryUpdateState, NoError>, check: @escaping () -> Void, install: @escaping () -> Void) {
+    public init(state: Signal<CrashRecoveryUpdateState, NoError>, checksAutomatically: Bool, check: @escaping () -> Void, install: @escaping () -> Void) {
         self.state = state
+        self.checksAutomatically = checksAutomatically
         self.check = check
         self.install = install
     }
@@ -61,6 +64,8 @@ private let websiteURL = URL(string: "https://macos.telegram.org")!
 private enum Text {
     static let title = strings().crashRecoveryTitle
     static let message = strings().crashRecoveryDescription
+    static let checksOff = strings().crashRecoveryChecksOff
+    static let checksOffDetail = strings().crashRecoveryChecksOffDetail
     static let checking = strings().crashRecoveryChecking
     static let checkingDetail = strings().crashRecoveryCheckingDetail
     static func downloading(_ version: String) -> String {
@@ -93,6 +98,7 @@ private enum Text {
     static let preparingButton = strings().crashRecoveryPreparingButton
     static let install = strings().crashRecoveryInstall
     static let installingButton = strings().crashRecoveryInstallingButton
+    static let check = strings().crashRecoveryCheck
     static let checkAgain = strings().crashRecoveryCheckAgain
     static let tryAgain = strings().crashRecoveryTryAgain
     static let openAppStore = strings().crashRecoveryOpenAppStore
@@ -119,6 +125,8 @@ private func recoveryContent(update: CrashRecoveryUpdate, state: CrashRecoveryUp
         return CrashRecoveryContent(symbol: .website, title: Text.website, detail: Text.websiteDetail, progress: nil, primaryTitle: openedExternal ? Text.quit : Text.openWebsite, primaryEnabled: true, secondaryEnabled: true, showsWebsite: false, showsReset: true)
     case .updater:
         switch state {
+        case .idle:
+            return CrashRecoveryContent(symbol: .check, title: Text.checksOff, detail: Text.checksOffDetail, progress: nil, primaryTitle: Text.check, primaryEnabled: true, secondaryEnabled: true, showsWebsite: true, showsReset: true)
         case .checking:
             return CrashRecoveryContent(symbol: .activity, title: Text.checking, detail: Text.checkingDetail, progress: nil, primaryTitle: Text.update, primaryEnabled: false, secondaryEnabled: true, showsWebsite: true, showsReset: true)
         case let .downloading(version, current, total):
@@ -144,7 +152,7 @@ private final class CrashRecoveryWindowController: NSObject, NSWindowDelegate {
     private let window: Window
     private let view: CrashRecoveryView
     private let disposable = MetaDisposable()
-    private var state: CrashRecoveryUpdateState = .checking
+    private var state: CrashRecoveryUpdateState
     private var pendingState: CrashRecoveryUpdateState?
     private var renderedContent: CrashRecoveryContent?
     private var openedExternal = false
@@ -152,6 +160,11 @@ private final class CrashRecoveryWindowController: NSObject, NSWindowDelegate {
 
     init(update: CrashRecoveryUpdate, palette: ColorPalette) {
         self.update = update
+        if case let .updater(updater) = update, !updater.checksAutomatically {
+            self.state = .idle
+        } else {
+            self.state = .checking
+        }
         self.view = CrashRecoveryView(frame: NSMakeRect(0, 0, CrashRecoveryView.width, 400), palette: palette, title: Text.title, message: Text.message, continueTitle: Text.continueAnyway, websiteTitle: Text.websiteLink, resetTitle: Text.reset)
         self.window = Window(contentRect: NSMakeRect(0, 0, CrashRecoveryView.width, 400), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         super.init()
@@ -191,7 +204,9 @@ private final class CrashRecoveryWindowController: NSObject, NSWindowDelegate {
                 }
                 CFRunLoopWakeUp(CFRunLoopGetMain())
             }))
-            updater.check()
+            if updater.checksAutomatically {
+                updater.check()
+            }
         }
         window.set(handler: { [weak self] _ in
             if let self = self, !self.primaryQuits {
@@ -272,7 +287,7 @@ private final class CrashRecoveryWindowController: NSObject, NSWindowDelegate {
             switch state {
             case .readyToInstall:
                 updater.install()
-            case .upToDate, .failed:
+            case .idle, .upToDate, .failed:
                 updater.check()
             default:
                 break
