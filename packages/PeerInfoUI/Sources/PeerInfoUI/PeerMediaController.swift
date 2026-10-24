@@ -124,6 +124,10 @@
         return MediaGridStyle.current.fillsWidth ? width : min(600, width - 40)
     }
 
+    static var pinnedTopInset: CGFloat {
+        return NavigationBarStyle.defaultHeight - sectionOffset
+    }
+
     public override func layout() {
         super.layout()
 

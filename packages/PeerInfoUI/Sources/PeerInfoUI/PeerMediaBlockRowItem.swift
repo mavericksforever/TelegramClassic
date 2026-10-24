@@ -50,7 +50,7 @@ class PeerMediaBlockRowItem<Context: AccountContextProtocol>: GeneralRowItem {
             if let temporaryHeight = temporaryHeight {
                 return temporaryHeight
             } else {
-                return (table?.frame.height ?? initialSize.height) - NavigationBarStyle.defaultHeight
+                return (table?.frame.height ?? initialSize.height) - PeerMediaContainerView.pinnedTopInset
             }
         }
     }
@@ -172,12 +172,12 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                 let itemY = table.rectOf(item: item).minY
                 let offsetY = table.liveDocumentOffset.y
 
-                let barHeight = NavigationBarStyle.defaultHeight
-                scrollInner = offsetY + barHeight >= itemY
+                let pinnedTopInset = PeerMediaContainerView.pinnedTopInset
+                scrollInner = offsetY + pinnedTopInset >= itemY
                 let mediaTable = item.controller.genericView.mainTable
                 if let mediaTable = mediaTable {
 
-                    let offset = offsetY + barHeight - itemY
+                    let offset = offsetY + pinnedTopInset - itemY
                     var updated = max(0, offset)
                     if mediaTable.documentSize.height <= item.height, updated > 0 {
                         updated = max(updated, 0)
@@ -202,7 +202,7 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                     
                     let point = item.controller.view.frame.origin
 
-                    item.controller.setProfileBlockVisible(offsetY + barHeight >= point.y)
+                    item.controller.setProfileBlockVisible(offsetY + pinnedTopInset >= point.y)
                 }
             }
             
@@ -264,7 +264,7 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                             if let tableView = item.controller.genericView.mainTable, tableView.liveDocumentOffset.y <= -tableView.contentInsets.top {
                                 if !item.controller.unableToHide {
                                     scrollInner = false
-                                    item.table?.clipView.scroll(to: NSMakePoint(0, self.frame.minY - NavigationBarStyle.defaultHeight))
+                                    item.table?.clipView.scroll(to: NSMakePoint(0, self.frame.minY - PeerMediaContainerView.pinnedTopInset))
                                     item.table?.scrollWheel(with: event)
                                     scrollingInMediaTable = false
                                     return true
