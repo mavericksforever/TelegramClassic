@@ -22,6 +22,7 @@ import PremiumUI
 
 public class ChatInputAccessory: View {
 
+    public static let verticalInset: CGFloat = 5
 
     public let nodeReady = Promise<Bool>()
 
@@ -30,6 +31,7 @@ public class ChatInputAccessory: View {
     public private(set) var displayNode:ChatAccessoryModel?
 
     private let dismiss:ImageButton = ImageButton()
+    private let modeIcon: ImageButton? = ChatStyle.current.input.accessory.modeIconLeading != nil ? ImageButton() : nil
     private var progress: Control?
     public let container:ChatAccessoryView = ChatAccessoryView()
 
@@ -46,6 +48,10 @@ public class ChatInputAccessory: View {
         super.init(frame: .zero)
         self.addSubview(container)
         self.addSubview(dismiss)
+        if let modeIcon {
+            modeIcon.autohighlight = false
+            self.addSubview(modeIcon)
+        }
 
         self.backgroundColor = .clear
         container.backgroundColor = .clear
@@ -70,7 +76,7 @@ public class ChatInputAccessory: View {
             })
         }
 
-        self.dismiss.set(image: ChatStyle.current.input.accessoryDismissIcon(theme), for: .Normal)
+        self.dismiss.set(image: ChatStyle.current.input.accessory.dismissIcon(theme), for: .Normal)
         _ = dismiss.sizeToFit()
         dismiss.setAccessibilityLabel(strings().voiceOverDiscardPreparedContent)
 
@@ -96,6 +102,7 @@ public class ChatInputAccessory: View {
     public func update(with state:ChatPresentationInterfaceState, context: any AccountContextProtocol, animated:Bool) -> Void {
 
         dismiss.isHidden = false
+        modeIcon?.isHidden = false
         progress?.isHidden = true
 
         displayNode = nil
@@ -106,6 +113,7 @@ public class ChatInputAccessory: View {
 
         if let data = state.interfaceState.suggestPost {
             displayNode = ChatInputUIHooks.shared.makeSuggestPostPanelModel(data, context)
+            modeIcon?.set(image: TelegramThemeHooks.shared.image(.iconInputSuggestPost).precomposed(theme.colors.accent), for: .Normal)
             dismiss.set(handler: { [weak self ] _ in
                 self?.dismissSuggestPost()
             }, for: .Click)
@@ -121,6 +129,7 @@ public class ChatInputAccessory: View {
 
         } else if let urlPreview = state.urlPreview, state.interfaceState.composeDisableUrlPreview != urlPreview.0, let peer = state.peer, !peer.webUrlRestricted {
             displayNode = ChatInputUIHooks.shared.makeUrlPreviewModel(context, urlPreview.1, urlPreview.0)
+            modeIcon?.set(image: theme.icons.chat_action_url_preview, for: .Normal)
             dismiss.set(handler: { [weak self ] _ in
                 self?.dismissUrlPreview()
             }, for: .Click)
@@ -182,6 +191,8 @@ public class ChatInputAccessory: View {
 
         } else if let editState = state.interfaceState.editState {
             displayNode = ChatInputUIHooks.shared.makeEditMessageModel(editState, context)
+            modeIcon?.set(image: theme.icons.chat_action_edit_message, for: .Normal)
+            modeIcon?.isHidden = editState.loadingState != .none
             progress?.isHidden = editState.loadingState == .none
             updateProgress(editState.loadingState)
             dismiss.set(handler: { [weak self] _ in
@@ -240,6 +251,7 @@ public class ChatInputAccessory: View {
                 }
             }
             displayNode = ChatInputUIHooks.shared.makeForwardPanelModel(state.interfaceState.forwardMessages, lockHideSender ? false : state.interfaceState.hideSendersName, context)
+            modeIcon?.set(image: theme.icons.chat_action_forward_message, for: .Normal)
 
             let anotherAction = { [weak self] in
                 guard let context = self?.chatInteraction.interactionContext else {
@@ -333,6 +345,7 @@ public class ChatInputAccessory: View {
 
         } else if let replyMessageId = state.interfaceState.replyMessageId {
             displayNode = ReplyModel(message: nil, replyMessageId: replyMessageId.messageId, context: chatInteraction.interactionContext, replyMessage: state.interfaceState.replyMessage, quote: replyMessageId.quote, innerSubject: replyMessageId.innerSubject, dismissReply: dismissReply, forceClassic: true)
+            modeIcon?.set(image: theme.icons.chat_action_reply_message, for: .Normal)
             dismiss.set(handler: { [weak self ] _ in
                 self?.dismissReply()
             }, for: .Click)
@@ -352,6 +365,11 @@ public class ChatInputAccessory: View {
                 return menu
 
             }
+        }
+
+        if let modeIcon {
+            modeIcon.contextMenu = container.contextMenu
+            modeIcon.sizeToFit()
         }
 
         if let displayNode = displayNode {
@@ -402,10 +420,19 @@ public class ChatInputAccessory: View {
     }
 
     public func updateLayout(_ size: NSSize, transition: ContainedViewLayoutTransition) {
-        transition.updateAlpha(view: self.container, alpha: isVisibility() ? 1 : 0)
-        transition.updateAlpha(view: self.dismiss, alpha: isVisibility() ? 1 : 0)
-        transition.updateFrame(view: self.container, frame: NSMakeRect(10, 0, size.width - 10, size.height))
-        transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: size.width - dismiss.frame.width - 6))
+        let style = ChatStyle.current.input.accessory
+        let alpha: CGFloat = isVisibility() ? 1 : 0
+        transition.updateAlpha(view: self.container, alpha: alpha)
+        transition.updateAlpha(view: self.dismiss, alpha: alpha)
+        transition.updateFrame(view: self.container, frame: NSMakeRect(style.contentLeading, 0, size.width - style.contentLeading - style.containerTrailing, size.height))
+        transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: size.width - dismiss.frame.width - style.dismissTrailing))
+        if let modeIcon, let leading = style.modeIconLeading {
+            transition.updateAlpha(view: modeIcon, alpha: alpha)
+            transition.updateFrame(view: modeIcon, frame: modeIcon.centerFrameY(x: leading))
+            if let progress {
+                transition.updateFrame(view: progress, frame: progress.centerFrameY(x: modeIcon.frame.midX - progress.frame.width / 2))
+            }
+        }
         displayNode?.setNeedDisplay()
 
     }
@@ -429,7 +456,8 @@ public class ChatInputAccessory: View {
 
 
     public func measureSize(_ width: CGFloat) {
-        displayNode?.measureSize(width - 10 - (displayNode?.cutout?.topLeft?.width ?? 0))
+        let style = ChatStyle.current.input.accessory
+        displayNode?.measureSize(width - style.contentLeading - style.contentTrailing - (displayNode?.cutout?.topLeft?.width ?? 0))
 
         if let displayNode = displayNode {
             self.size = NSMakeSize(width, displayNode.size.height)

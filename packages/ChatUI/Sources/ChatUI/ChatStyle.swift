@@ -68,6 +68,21 @@ struct ChatStyle: InterfaceStyleVariants {
         let from: (TelegramPresentationTheme) -> CGImage
     }
 
+    struct Accessory {
+        enum Placement {
+            case field
+            case bar(NSEdgeInsets)
+        }
+
+        let placement: Placement
+        let modeIconLeading: CGFloat?
+        let contentLeading: CGFloat
+        let contentTrailing: CGFloat
+        let containerTrailing: CGFloat
+        let dismissTrailing: CGFloat
+        let dismissIcon: (TelegramPresentationTheme) -> CGImage
+    }
+
     struct Keyboard {
         let sideInset: CGFloat
         let contentInset: CGFloat
@@ -90,7 +105,7 @@ struct ChatStyle: InterfaceStyleVariants {
         let placeholderColor: (ColorPalette) -> NSColor
         let send: SendButton
         let keyboard: Keyboard
-        let accessoryDismissIcon: (TelegramPresentationTheme) -> CGImage
+        let accessory: Accessory
 
         var transparentBottomInset: CGFloat {
             return floats ? bottomInset : 0
@@ -178,7 +193,15 @@ struct ChatStyle: InterfaceStyleVariants {
                 heightPadding: 6,
                 cornerRadius: 16
             ),
-            accessoryDismissIcon: { $0.icons.chat_header_dismiss }
+            accessory: Accessory(
+                placement: .field,
+                modeIconLeading: nil,
+                contentLeading: 10,
+                contentTrailing: 12,
+                containerTrailing: 0,
+                dismissTrailing: 6,
+                dismissIcon: { $0.icons.chat_header_dismiss }
+            )
         ),
         searchIcons: SearchIcons(
             next: { theme, enabled in enabled ? theme.icons.chat_search_next : theme.icons.chat_search_next_disabled },
@@ -255,7 +278,15 @@ struct ChatStyle: InterfaceStyleVariants {
                 heightPadding: 10,
                 cornerRadius: 0
             ),
-            accessoryDismissIcon: { $0.icons.dismissAccessory }
+            accessory: Accessory(
+                placement: .bar(NSEdgeInsets(left: 15, right: 24)),
+                modeIconLeading: 2,
+                contentLeading: 49,
+                contentTrailing: 35,
+                containerTrailing: 35,
+                dismissTrailing: -3,
+                dismissIcon: { $0.icons.dismissAccessory }
+            )
         ),
         searchIcons: SearchIcons(
             next: { theme, enabled in enabled ? theme.icons.chatSearchDown : theme.icons.chatSearchDownDisabled },

@@ -151,7 +151,9 @@ public final class ChatInputContainerView: FlippableView {
         contentView.layer?.masksToBounds = false
         textFieldContainer.layer?.masksToBounds = true
 
-        textFieldContainer.addSubview(accessory)
+        if case .field = ChatStyle.current.input.accessory.placement {
+            textFieldContainer.addSubview(accessory)
+        }
         textFieldContainer.addSubview(textView)
         textFieldContainer.addSubview(actionsView)
 
@@ -188,6 +190,9 @@ public final class ChatInputContainerView: FlippableView {
         self.addSubview(contentView)
         self.addSubview(textFieldContainer)
         self.addSubview(sendButton)
+        if case .bar = ChatStyle.current.input.accessory.placement {
+            self.addSubview(accessory)
+        }
 
         // bottomView (keyboard markup scroll area) + keyboardGlass live in the
         // container so they're hidden together when the input state changes
@@ -210,7 +215,20 @@ public final class ChatInputContainerView: FlippableView {
     public var chatState: ChatState { chatInteraction.presentation.state }
 
     public var accessoryHeight: CGFloat {
-        accessory.isVisibility() ? 10 + accessory.size.height : 0
+        accessory.isVisibility() ? ChatInputAccessory.verticalInset * 2 + accessory.size.height : 0
+    }
+
+    var accessoryWidth: CGFloat {
+        return accessoryWidth(fieldWidth: textFieldContainer.frame.width)
+    }
+
+    private func accessoryWidth(fieldWidth: CGFloat) -> CGFloat {
+        switch ChatStyle.current.input.accessory.placement {
+        case .field:
+            return fieldWidth - 8
+        case let .bar(insets):
+            return bounds.width - insets.left - insets.right
+        }
     }
 
     public func contentHeight(for width: CGFloat) -> CGFloat {
@@ -463,14 +481,28 @@ public final class ChatInputContainerView: FlippableView {
             glassWrapper.setGhostFrame(keyboardGhost, frame: keyboardGhostFrame, transition: transition)
         }
 
-        accessory.measureSize(containerWidth - 20)
+        let accessoryWidth = self.accessoryWidth(fieldWidth: textFieldFrame.width)
+        accessory.measureSize(accessoryWidth)
         let accessoryShown = accessory.isVisibility()
-        let accessoryFrame = NSMakeRect(5, accessoryShown ? 5 : -accessory.size.height, containerWidth - 8, accessory.size.height)
-        if accessoryShown, transition.isAnimated, accessory.frame.minY < accessoryFrame.minY {
-            accessory.frame = accessoryFrame.offsetBy(dx: 0, dy: -accessoryFrame.maxY)
+        let accessoryInset = ChatInputAccessory.verticalInset
+        switch ChatStyle.current.input.accessory.placement {
+        case .field:
+            let accessoryFrame = NSMakeRect(5, accessoryShown ? accessoryInset : -accessory.size.height, accessoryWidth, accessory.size.height)
+            if accessoryShown, transition.isAnimated, accessory.frame.minY < accessoryFrame.minY {
+                accessory.frame = accessoryFrame.offsetBy(dx: 0, dy: -accessoryFrame.maxY)
+            }
+            transition.updateFrame(view: accessory, frame: accessoryFrame)
+            accessory.updateLayout(accessoryFrame.size, transition: transition)
+        case let .bar(insets):
+            let rowTop = contentY + contentHeight - accessoryHeight
+            let parkedFrame = NSMakeRect(insets.left, rowTop, accessoryWidth, accessory.size.height)
+            let accessoryFrame = accessoryShown ? parkedFrame.offsetBy(dx: 0, dy: accessoryInset) : parkedFrame
+            if accessoryShown, transition.isAnimated, accessory.frame.isEmpty {
+                accessory.frame = parkedFrame
+            }
+            transition.updateFrame(view: accessory, frame: accessoryFrame)
+            accessory.updateLayout(accessoryFrame.size, transition: transition)
         }
-        transition.updateFrame(view: accessory, frame: accessoryFrame)
-        accessory.updateLayout(accessoryFrame.size, transition: transition)
 
         let textY = accessoryHeight
         if let view = sendAsView {
@@ -1852,7 +1884,7 @@ public class ChatInputView: View, Notifable {
     }
     
     private func updateAccesory(animated: Bool) {
-        self.accessory.measureSize(self.textFieldContainer.frame.width - 35)
+        self.accessory.measureSize(container.accessoryWidth)
         self.inputDidUpdateLayout(animated: animated)
         if self.updateFirstTime {
             self.updateFirstTime = false
