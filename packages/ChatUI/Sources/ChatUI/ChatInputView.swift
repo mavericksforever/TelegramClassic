@@ -157,22 +157,24 @@ public final class ChatInputContainerView: FlippableView {
 
         addSubview(glassWrapper)
 
-        let attachGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
-        let textGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
-        let voiceGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
-        let botMenuGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
-        let keyboardGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
-        self.attachGhost = attachGhost
-        self.textGhost = textGhost
-        self.voiceGhost = voiceGhost
-        self.botMenuGhost = botMenuGhost
-        self.keyboardGhost = keyboardGhost
+        if ChatStyle.current.input.floats {
+            let attachGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
+            let textGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
+            let voiceGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
+            let botMenuGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
+            let keyboardGhost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true)
+            self.attachGhost = attachGhost
+            self.textGhost = textGhost
+            self.voiceGhost = voiceGhost
+            self.botMenuGhost = botMenuGhost
+            self.keyboardGhost = keyboardGhost
 
-        glassWrapper.addGhost(attachGhost)
-        glassWrapper.addGhost(textGhost)
-        glassWrapper.addGhost(voiceGhost)
-        glassWrapper.addGhost(botMenuGhost)
-        glassWrapper.addGhost(keyboardGhost)
+            glassWrapper.addGhost(attachGhost)
+            glassWrapper.addGhost(textGhost)
+            glassWrapper.addGhost(voiceGhost)
+            glassWrapper.addGhost(botMenuGhost)
+            glassWrapper.addGhost(keyboardGhost)
+        }
 
         sendButton.setMediaActionInnerGlassHidden(true)
         sendButton.setSharedGlassGhost(voiceGhost)
@@ -192,7 +194,7 @@ public final class ChatInputContainerView: FlippableView {
         // (recording / action panel / etc. via container.isHidden).
         keyboardGlass.isHidden = true
         bottomView.documentView = ReplyMarkupContainerView()
-        bottomView.layer?.cornerRadius = 16
+        bottomView.layer?.cornerRadius = ChatStyle.current.input.keyboard.cornerRadius
         bottomView.documentView?.background = .clear
         bottomView.scrollerStyle = .overlay
         bottomView.contentView.backgroundColor = .clear
@@ -267,11 +269,9 @@ public final class ChatInputContainerView: FlippableView {
             if isNew {
                 // Position the freshly-created preview immediately (same formula as updateLayout) so it
                 // doesn't flash at the origin before the next layout pass.
-                let sendAsInset: CGFloat = sendAsView != nil ? 34 + 3 : 0
-                let textLeftInset: CGFloat = 12 + sendAsInset
                 let slot = max(richDraftPreviewHeight, CGFloat(textView.min_height))
                 let previewY = accessoryHeight + (slot - richDraftPreviewHeight) / 2
-                current.frame = NSMakeRect(textLeftInset, previewY, width, richDraftPreviewHeight)
+                current.frame = NSMakeRect(textOriginX, previewY, width, richDraftPreviewHeight)
             }
         } else if let view = richDraftPreview {
             view.removeFromSuperview()
@@ -281,14 +281,22 @@ public final class ChatInputContainerView: FlippableView {
         return previousHeight != richDraftPreviewHeight
     }
 
+    private var sendAsInset: CGFloat {
+        return sendAsView != nil ? 34 + 3 : 0
+    }
+
+    private var textOriginX: CGFloat {
+        return ChatStyle.current.input.textInset + sendAsInset
+    }
+
     public func textViewSize(_ width: CGFloat) -> (NSSize, CGFloat) {
-        let edge: CGFloat = 12
-        let gap: CGFloat = 10
+        let style = ChatStyle.current.input
+        let edge = style.edge
+        let gap = style.fieldGap
         var leftInset: CGFloat = attachView.frame.width
         if let botMenu = self.botMenuView {
             leftInset += botMenu.glassFrame.width + gap
         }
-        let sendAsInset: CGFloat = sendAsView != nil ? 34 + 3 : 0
         let sendSlot = self.sendSlot(gap: gap)
         let containerWidth = width - edge - leftInset - gap - sendSlot.outside - edge
         let textLeftInset: CGFloat = 10 + sendAsInset
@@ -312,19 +320,20 @@ public final class ChatInputContainerView: FlippableView {
 
     public func updateLayout(transition: ContainedViewLayoutTransition) {
         let size = bounds.size
+        let keyboard = ChatStyle.current.input.keyboard
         let bottomInset = chatInteraction.presentation.isKeyboardShown ? bottomHeight : 0
-        let keyboardWidth = size.width - 26
+        let keyboardWidth = size.width - keyboard.sideInset * 2
         let contentHeight = contentHeight(for: size.width)
         let contentY = bottomInset + ChatInputView.inputBottomInset
 
-        let glassBottomMargin = ChatInputView.keyboardGlassBottomMargin
+        let glassBottomMargin = keyboard.bottomMargin
         let keyboardGlassHeight = max(0, bottomHeight - glassBottomMargin)
         let keyboardGlassY = chatInteraction.presentation.isKeyboardShown ? glassBottomMargin : -keyboardGlassHeight
 
         // keyboardGlass parks at a negative y while the markup keyboard is
         // hidden — `keyboardGlassHeight <= 0` hides it in that state.
-        let keyboardInset: CGFloat = 3
-        let glassFrame = NSMakeRect(13, keyboardGlassY, keyboardWidth, keyboardGlassHeight)
+        let keyboardInset = keyboard.contentInset
+        let glassFrame = NSMakeRect(keyboard.sideInset, keyboardGlassY, keyboardWidth, keyboardGlassHeight)
         if inputRowGlassContainer == nil {
             transition.updateFrame(view: keyboardGlass, frame: glassFrame)
             keyboardGlass.updateLayout(size: glassFrame.size, transition: transition)
@@ -338,8 +347,8 @@ public final class ChatInputContainerView: FlippableView {
         }
         transition.updateFrame(view: bottomView, frame: bottomViewFrame)
 
-        let edge: CGFloat = 12
-        let gap: CGFloat = 10
+        let edge = ChatStyle.current.input.edge
+        let gap = ChatStyle.current.input.fieldGap
 
         transition.updateFrame(view: contentView, frame: NSMakeRect(0, contentY, size.width, contentHeight))
 
@@ -369,7 +378,6 @@ public final class ChatInputContainerView: FlippableView {
             && chatInteraction.presentation.peer?.isSecretChat != true
             && textView.numberOfLines(for: textSize.width) >= 4
 
-        let sendAsInset: CGFloat = sendAsView != nil ? 34 + 3 : 0
         let sendSize = sendButton.desiredSize
         let sendWidth = sendSize.width
 
@@ -387,7 +395,7 @@ public final class ChatInputContainerView: FlippableView {
         let containerWidth = size.width - edge - sendSlot.outside - containerX
         let fieldContentWidth = containerWidth - sendSlot.inField
 
-        textFieldContainer.layer?.cornerRadius = 20
+        textFieldContainer.layer?.cornerRadius = ChatStyle.current.input.fieldCornerRadius
 
         let textFieldFrame = NSMakeRect(containerX, contentY, containerWidth, contentHeight)
         transition.updateFrame(view: textFieldContainer, frame: textFieldFrame)
@@ -473,8 +481,7 @@ public final class ChatInputContainerView: FlippableView {
             transition.updateFrame(view: view, frame: frame)
         }
 
-        let textLeftInset: CGFloat = 12 + sendAsInset
-        let textRect = NSMakeRect(textLeftInset, textY, textSize.width, textSize.height)
+        let textRect = NSMakeRect(textOriginX, textY, textSize.width, textSize.height)
 
         if let preview = richDraftPreview {
             // A rich draft IS the input content: hide the text field (and its placeholder) and render the
@@ -492,7 +499,7 @@ public final class ChatInputContainerView: FlippableView {
             textView.isHidden = true
             let slot = max(richDraftPreviewHeight, CGFloat(textView.min_height))
             let previewY = textY + (slot - richDraftPreviewHeight) / 2
-            transition.updateFrame(view: preview, frame: NSMakeRect(textLeftInset, previewY, textSize.width, richDraftPreviewHeight))
+            transition.updateFrame(view: preview, frame: NSMakeRect(textOriginX, previewY, textSize.width, richDraftPreviewHeight))
         } else {
             textView.isHidden = false
             transition.updateFrame(view: textView, frame: textRect)
@@ -657,9 +664,10 @@ public class ChatInputView: View, Notifable {
 
     private var bottomView: ScrollView { container.bottomView }
     private var keyboardGlass: LiquidGlassView { container.keyboardGlass }
+    private let topBorder: View? = ChatStyle.current.input.floats ? nil : View()
 
 
-    private var messageActionsPanelView: MessageActionsPanelView?
+    private var messageActionsPanelView: (MessageActionsPanel & ChatInputGlassMorphing)?
 
     /// Latest chat theme passed in via `updateLocalizationAndTheme`. Stored
     /// so paths that create subviews on-the-fly (e.g. `setState` instantiating
@@ -701,7 +709,6 @@ public class ChatInputView: View, Notifable {
     }
 
     public static let maxBottomHeight = ReplyMarkupNode.rowHeight * 5 + ReplyMarkupNode.buttonHeight / 2
-    public static let keyboardGlassBottomMargin: CGFloat = 12
 
     private let textInteractions: TextView_Interactions
 
@@ -724,8 +731,10 @@ public class ChatInputView: View, Notifable {
 
         // bottomView + keyboardGlass moved into the container.
         self.addSubview(container)
+        if let topBorder {
+            self.addSubview(topBorder)
+        }
 
-        self.background = .clear
         contentView.backgroundColor = .clear
         textFieldContainer.backgroundColor = .clear
         actionsView.backgroundColor = .clear
@@ -1003,16 +1012,23 @@ public class ChatInputView: View, Notifable {
         return false
     }
     
-    public static let inputBottomInset: CGFloat = 12
+    public static var inputTopInset: CGFloat {
+        return ChatStyle.current.input.topInset
+    }
+
+    public static var inputBottomInset: CGFloat {
+        return ChatStyle.current.input.bottomInset
+    }
 
     public func height(for width: CGFloat) -> CGFloat {
         let contentHeight:CGFloat = contentHeight(for: width)
-        var sumHeight:CGFloat = contentHeight + ChatInputView.inputBottomInset
+        var sumHeight:CGFloat = ChatInputView.inputTopInset + contentHeight + ChatInputView.inputBottomInset
         if let markup = replyMarkupModel  {
+            let keyboard = ChatStyle.current.input.keyboard
             bottomHeight = min(
                 ChatInputView.maxBottomHeight,
-                markup.size.height + 6
-            ) + ChatInputView.keyboardGlassBottomMargin
+                markup.size.height + keyboard.heightPadding
+            ) + keyboard.bottomMargin
         } else {
             bottomHeight = 0
         }
@@ -1157,6 +1173,8 @@ public class ChatInputView: View, Notifable {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
         self.currentChatTheme = theme
+        self.background = ChatStyle.current.input.background(theme.colors)
+        topBorder?.backgroundColor = theme.colors.border
 
         attachView.updateLocalizationAndTheme(theme: theme)
         attachView.setInnerGlassHidden(true)
@@ -1209,7 +1227,7 @@ public class ChatInputView: View, Notifable {
         }
         textView.inputTheme = theme.inputTheme
             .withUpdatedQuote(colors)
-            .withUpdatedPlaceholderColor(theme.colors.darkGrayText)
+            .withUpdatedPlaceholderColor(ChatStyle.current.input.placeholderColor(theme.colors))
     }
     
     public func notify(with value: Any, oldValue:Any, animated:Bool) {
@@ -1411,7 +1429,7 @@ public class ChatInputView: View, Notifable {
     
     public func needUpdateReplyMarkup(with state:ChatPresentationInterfaceState, _ animated:Bool) {
         if let keyboardMessage = state.keyboardButtonsMessage, let attribute = keyboardMessage.replyMarkup, state.isKeyboardShown || attribute.flags.contains(.persistent) {
-            replyMarkupModel = ReplyMarkupNode(attribute.rows, attribute.flags, chatInteraction.processBotKeyboard(with: keyboardMessage), theme, bottomView.documentView as? View, true, outerCornerRadius: 16)
+            replyMarkupModel = ReplyMarkupNode(attribute.rows, attribute.flags, chatInteraction.processBotKeyboard(with: keyboardMessage), theme, bottomView.documentView as? View, true, outerCornerRadius: ChatStyle.current.input.keyboard.cornerRadius)
             replyMarkupModel?.measureSize(frame.width - 40 - 24)
             replyMarkupModel?.redraw()
             replyMarkupModel?.layout()
@@ -1621,7 +1639,7 @@ public class ChatInputView: View, Notifable {
                 current = view
             } else {
                 current = ChatInputRecordingView(frame: NSMakeRect(12, 12, frame.width, standart), chatInteraction: chatInteraction, recorder: recorder)
-                current.glassInset = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 12 + sendButton.frame.width)
+                current.glassInset = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: ChatStyle.current.input.edge + sendButton.frame.width)
                 self.recordingPanelView = current
                 self.addSubview(current)
                 isNew = true
@@ -1642,12 +1660,12 @@ public class ChatInputView: View, Notifable {
         }
 
         if state == .selecting {
-            let current: MessageActionsPanelView
+            let current: MessageActionsPanel & ChatInputGlassMorphing
             var isNew = false
             if let view = messageActionsPanelView {
                 current = view
             } else {
-                current = MessageActionsPanelView(frame: bounds)
+                current = makeChatInputMessageActionsPanel(frame: bounds)
                 current.prepare(with: chatInteraction)
                 current.updateLocalizationAndTheme(theme: currentChatTheme ?? theme)
                 self.messageActionsPanelView = current
@@ -1909,8 +1927,9 @@ public class ChatInputView: View, Notifable {
     public func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
 
 
-        let keyboardWidth = frame.width - 26
-        let keyboardInset: CGFloat = 3
+        let keyboard = ChatStyle.current.input.keyboard
+        let keyboardWidth = frame.width - keyboard.sideInset * 2
+        let keyboardInset = keyboard.contentInset
         // keyboardGlass + bottomView positioning lives in ChatInputContainerView
         // now (they're its subviews); ChatInputView just sets the container frame.
 
@@ -1938,8 +1957,12 @@ public class ChatInputView: View, Notifable {
         container.bottomHeight = bottomHeight
         container.updateLayout(transition: transition)
 
+        if let topBorder {
+            transition.updateFrame(view: topBorder, frame: NSMakeRect(0, size.height - .borderSize, size.width, .borderSize))
+        }
+
         if let view = recordingPanelView {
-            let edge: CGFloat = 12
+            let edge = ChatStyle.current.input.edge
             let sendWidth = sendButton.frame.width
             let sendMinX = size.width - edge - sendWidth
             let recContentY = contentView.frame.origin.y

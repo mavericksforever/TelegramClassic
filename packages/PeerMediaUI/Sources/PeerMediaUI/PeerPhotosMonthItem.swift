@@ -82,6 +82,7 @@ public class PeerPhotosMonthItem: GeneralRowItem {
         layoutItems.removeAll()
         let gap = min(self.gap, rowCount - 1)
         var point: CGPoint = CGPoint(x: self.viewType.innerInset.left + CGFloat(gap) * itemSize.width, y: self.viewType.innerInset.top + itemSize.height)
+        let tileRadius = MediaGridStyle.current.tileCornerRadius
         for (i, message) in self.items.enumerated() {
             let viewType: MediaCell.Type
             if let file = message.anyMedia as? TelegramMediaFile {
@@ -103,22 +104,22 @@ public class PeerPhotosMonthItem: GeneralRowItem {
                 if self.items.count < rowCount {
                     if message == self.items.first {
                         if self.viewType.position != .last {
-                            topLeft = .Corner(.cornerRadius)
+                            topLeft = .Corner(tileRadius)
                         }
-                        bottomLeft = .Corner(.cornerRadius)
+                        bottomLeft = .Corner(tileRadius)
                     }
                 } else if self.items.count == rowCount {
                     if message == self.items.first {
                         if self.viewType.position != .last {
-                            topLeft = .Corner(.cornerRadius)
+                            topLeft = .Corner(tileRadius)
                         }
-                        bottomLeft = .Corner(.cornerRadius)
+                        bottomLeft = .Corner(tileRadius)
                     } else if message == self.items.last {
                         if message == self.items.last {
                             if self.viewType.position != .last {
-                                topRight = .Corner(.cornerRadius)
+                                topRight = .Corner(tileRadius)
                             }
-                            bottomRight = .Corner(.cornerRadius)
+                            bottomRight = .Corner(tileRadius)
                         }
                     }
                 } else {
@@ -130,16 +131,16 @@ public class PeerPhotosMonthItem: GeneralRowItem {
                     if firstLine {
                         if self.viewType.position != .last {
                             if i % rowCount == 1 {
-                                topLeft = .Corner(.cornerRadius)
+                                topLeft = .Corner(tileRadius)
                             } else if i % rowCount == 0 {
-                                topRight = .Corner(.cornerRadius)
+                                topRight = .Corner(tileRadius)
                             }
                         }
                     } else if lastLine {
                         if i % rowCount == 1 {
-                            bottomLeft = .Corner(.cornerRadius)
+                            bottomLeft = .Corner(tileRadius)
                         } else if i % rowCount == 0 {
-                            bottomRight = .Corner(.cornerRadius)
+                            bottomRight = .Corner(tileRadius)
                         }
                     }
                 }

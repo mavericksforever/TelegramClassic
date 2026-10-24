@@ -377,7 +377,7 @@ open class AppMenuRowView: AppMenuBasicItemView {
 
         containerView.scaleOnClick = true
 
-        containerView.layer?.cornerRadius = 14
+        containerView.layer?.cornerRadius = InterfaceStyle.current.menu.rowCornerRadius
         containerView.scaleOnClick = true
         
         let CheckWindow:() -> Bool = { [weak self] in

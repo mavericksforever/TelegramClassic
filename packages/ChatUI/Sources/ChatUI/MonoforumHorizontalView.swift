@@ -32,7 +32,7 @@ public class MonoforumHorizontalView : View {
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
 
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         segmentView.backgroundColor = .clear
         segmentView.scrollView.background = .clear
         

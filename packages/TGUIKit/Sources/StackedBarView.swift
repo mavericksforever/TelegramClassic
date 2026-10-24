@@ -2,8 +2,9 @@ import Cocoa
 
 public final class StackedBarView: BarView {
 
-    public static let pillHeight: CGFloat = 40
-    private static let spacing: CGFloat = 10
+    public static var pillHeight: CGFloat {
+        return InterfaceStyle.current.barButton.minSide
+    }
 
     public private(set) var buttons: [ImageButton] = []
 
@@ -28,14 +29,13 @@ public final class StackedBarView: BarView {
     }
 
     private func createButton(image: CGImage? = nil, text: String? = nil, glassForceAppearance: LiquidGlassAppearance? = nil, handler: (() -> Void)? = nil) -> ImageButton {
+        let metrics = InterfaceStyle.current.barButton
         let btn: ImageButton
         if let text = text {
             let textBtn = TextButton()
             textBtn.autoSizeToFit = false
-            textBtn.set(font: .normal(.title), for: .Normal)
-            textBtn.set(color: presentation.colors.text, for: .Normal)
             textBtn.set(text: text, for: .Normal)
-            textBtn.set(background: .clear, for: .Normal)
+            applyTextStyle(textBtn)
             btn = textBtn
         } else {
             btn = ImageButton()
@@ -43,7 +43,7 @@ public final class StackedBarView: BarView {
         if let image = image {
             btn.set(image: image, for: .Normal)
         }
-        btn.scaleOnClick = true
+        btn.scaleOnClick = metrics.usesGlass
         btn.disableActions()
         btn.animates = false
         btn.autohighlight = false
@@ -54,12 +54,34 @@ public final class StackedBarView: BarView {
             btn.set(handler: { _ in handler() }, for: .Click)
         }
         addSubview(btn)
-        let ghost = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: true, hasBorder: true, forceAppearance: glassForceAppearance)
-        glassWrapper.addGhost(ghost)
-        ghosts[ObjectIdentifier(btn)] = ghost
-        btn.interactiveGlassView = ghost
-        btn.additionalGlassEffectView = ghost
+        if metrics.usesGlass {
+            let ghost = LiquidGlassView(frame: .zero, cornerRadius: metrics.minSide / 2, hasShadow: true, hasBorder: true, forceAppearance: glassForceAppearance)
+            glassWrapper.addGhost(ghost)
+            ghosts[ObjectIdentifier(btn)] = ghost
+            btn.interactiveGlassView = ghost
+            btn.additionalGlassEffectView = ghost
+        }
         return btn
+    }
+
+    private func applyTextStyle(_ button: TextButton) {
+        if InterfaceStyle.current.barButton.followsBarPresentation, let controller {
+            button.set(font: controller.barPresentation.font, for: .Normal)
+            button.set(color: controller.barPresentation.foregroundColor, for: .Normal)
+            button.set(background: controller.barPresentation.backgroundColor, for: .Normal)
+        } else {
+            button.set(font: .normal(.title), for: .Normal)
+            button.set(color: presentation.colors.text, for: .Normal)
+            button.set(background: .clear, for: .Normal)
+        }
+    }
+
+    private func slotWidth(for button: ImageButton) -> CGFloat {
+        let metrics = InterfaceStyle.current.barButton
+        if let textButton = button as? TextButton, !textButton.isEmpty {
+            return button.frame.width + metrics.textMargin
+        }
+        return max(button.frame.width, metrics.imageMinWidth)
     }
 
     @discardableResult
@@ -116,29 +138,29 @@ public final class StackedBarView: BarView {
     }
 
     public override func fit(to maxWidth: CGFloat, transition: ContainedViewLayoutTransition = .immediate) -> CGFloat {
-        let pillHeight = StackedBarView.pillHeight
-        let spacing = StackedBarView.spacing
-        var totalWidth: CGFloat = 0
+        let metrics = InterfaceStyle.current.barButton
         validLayout = .zero
-        for btn in visibleButtons {
+        let visible = visibleButtons
+        for btn in visible {
             if let textBtn = btn as? TextButton, !textBtn.isEmpty {
-                _ = textBtn.sizeToFit(NSMakeSize(20, 0), NSMakeSize(maxWidth, pillHeight), thatFit: false, transition: transition)
+                _ = textBtn.sizeToFit(NSMakeSize(metrics.textPadding, 0), NSMakeSize(maxWidth, metrics.minSide), thatFit: false, transition: transition)
             } else {
-                btn.sizeToFit(.zero, NSMakeSize(pillHeight, pillHeight), thatFit: true, transition: transition)
+                btn.sizeToFit(.zero, NSMakeSize(metrics.minSide, metrics.minSide), thatFit: true, transition: transition)
             }
-            let w = btn.frame.width
-            if totalWidth > 0, btn != visibleButtons.last { totalWidth += spacing }
-            totalWidth += w
         }
-        return totalWidth
+        return contentWidth(of: visible)
+    }
+
+    private func contentWidth(of buttons: [ImageButton]) -> CGFloat {
+        let slots = buttons.reduce(CGFloat(0)) { $0 + slotWidth(for: $1) }
+        return slots + CGFloat(max(0, buttons.count - 1)) * InterfaceStyle.current.barButton.spacing
     }
 
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         for btn in buttons {
             if let textBtn = btn as? TextButton {
-                textBtn.set(color: presentation.colors.text, for: .Normal)
-                textBtn.set(background: .clear, for: .Normal)
+                applyTextStyle(textBtn)
             }
         }
         // Forward to each ghost so its forceAppearance.didSet rebuilds the
@@ -161,24 +183,18 @@ public final class StackedBarView: BarView {
         if size == validLayout { return }
         validLayout = size
 
-        let pillHeight = StackedBarView.pillHeight
-        let spacing = StackedBarView.spacing
-        let y = floorToScreenPixels(backingScaleFactor, (size.height - pillHeight) / 2)
         let visible = visibleButtons
-
-
-        let totalWidth = visible.reduce(CGFloat(0)) { sum, btn in
-            return sum + btn.frame.width
-        } + CGFloat(max(0, visible.count - 1)) * spacing
+        let spacing = InterfaceStyle.current.barButton.spacing
 
         transition.updateFrame(view: glassWrapper, frame: size.bounds)
         glassWrapper.updateLayout(size: size, transition: transition)
 
-        var x = size.width - totalWidth
+        var x = size.width - contentWidth(of: visible)
         for btn in visible {
-            let w = btn.frame.width
-            let btnSize = NSMakeSize(w, pillHeight)
-            let btnFrame = NSRect(origin: NSMakePoint(x, y), size: btnSize)
+            let slot = slotWidth(for: btn)
+            let btnSize = btn.frame.size
+            let origin = NSMakePoint(x + floorToScreenPixels(backingScaleFactor, (slot - btnSize.width) / 2), floorToScreenPixels(backingScaleFactor, (size.height - btnSize.height) / 2))
+            let btnFrame = NSRect(origin: origin, size: btnSize)
             transition.updateFrame(view: btn, frame: btnFrame)
             btn.updateLayout(size: btnSize, transition: transition)
             if let ghost = ghosts[ObjectIdentifier(btn)] {
@@ -188,7 +204,7 @@ public final class StackedBarView: BarView {
                 ghost.isHidden = buttonOpacity <= 0.01
                 glassWrapper.setGhostFrame(ghost, frame: btnFrame, transition: transition)
             }
-            x += w + spacing
+            x += slot + spacing
         }
 
         // Hide ghosts whose buttons are hidden.

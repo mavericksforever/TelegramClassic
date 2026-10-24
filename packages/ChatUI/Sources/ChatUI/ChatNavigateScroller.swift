@@ -63,7 +63,8 @@ public class ChatNavigationScroller: ImageButton {
         self.setFrameSize(64,64)
 
         self.layer?.masksToBounds = false
-        
+        self.shadow = ChatStyle.current.navigationButtonShadow
+
         setGlassEffect(size: NSMakeSize(40, 40))
     }
 

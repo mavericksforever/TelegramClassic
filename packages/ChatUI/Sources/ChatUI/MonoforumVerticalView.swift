@@ -598,8 +598,9 @@ private final class Monoforum_VerticalView : TableRowView {
 }
 
 public class MonoforumVerticalView : View, TableViewDelegate {
-    
-    
+
+    static let width: CGFloat = 80
+
     private var ignoreNextSelectAction: Bool = false
     
     public func selectionDidChange(row: Int, item: TableRowItem, byClick: Bool, isNew: Bool) {

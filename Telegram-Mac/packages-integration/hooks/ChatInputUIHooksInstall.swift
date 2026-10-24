@@ -150,6 +150,14 @@ func installChatInputUIHooks() {
             }
         }
         return result
+    }, entertainmentSidebarVisibility: { window in
+        var result: Signal<Bool, NoError> = .single(false)
+        appDelegate?.enumerateApplicationContexts { applicationContext in
+            if let visibility = applicationContext.entertainmentSidebarVisibility(in: window) {
+                result = visibility
+            }
+        }
+        return result
     })
     hooks.makeTranslateModalWithContext = { context, from, toLang, text, onUse, onSend in
         TranslateModalController(context: context as! AccountContext, from: from, toLang: toLang, text: text, onUse: onUse, onSend: onSend)

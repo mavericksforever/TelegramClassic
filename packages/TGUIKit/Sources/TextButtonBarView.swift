@@ -2,9 +2,6 @@ import Cocoa
 
 open class TextButtonBarView: BarView {
 
-    public static let pillHeight: CGFloat = 40
-    private static let horizontalPad: CGFloat = 20
-
     public let button: TextButton = TextButton()
     private var progressIndicator: ProgressIndicator?
     private weak var progressAnchor: NSView?
@@ -12,12 +9,15 @@ open class TextButtonBarView: BarView {
     private var currentTexts: [ControlState: String] = [:]
 
     public init(controller: ViewController, text: String, style: ControlStyle = navigationButtonStyle, glassForceAppearance: LiquidGlassAppearance? = nil) {
+        let metrics = InterfaceStyle.current.barButton
 
-        var pillStyle = style
-        pillStyle.foregroundColor = presentation.colors.text
+        var buttonStyle = style
+        if !metrics.followsBarPresentation {
+            buttonStyle.foregroundColor = presentation.colors.text
+        }
         button.autoSizeToFit = false
-        button.set(font: pillStyle.font, for: .Normal)
-        button.set(color: pillStyle.foregroundColor, for: .Normal)
+        button.set(font: buttonStyle.font, for: .Normal)
+        button.set(color: buttonStyle.foregroundColor, for: .Normal)
         button.set(text: text, for: .Normal)
         button.set(background: .clear, for: .Normal)
         button.disableActions()
@@ -26,22 +26,24 @@ open class TextButtonBarView: BarView {
         currentTexts[.Normal] = text
         super.init(controller: controller)
 
-        self.style = pillStyle
-        button.style = pillStyle
+        self.style = buttonStyle
+        button.style = buttonStyle
 
         self.addSubview(button)
         progressAnchor = button.subviews.last
 
         button.disableActions()
         button.animates = false
-        button.scaleOnClick = true
-
-        button.layer?.cornerRadius = TextButtonBarView.pillHeight / 2
-        button.layer?.masksToBounds = true
         self.layer?.masksToBounds = false
-        button.setGlassEffect(forceAppearance: glassForceAppearance)
-        self.stretchReferenceView = button
-        self.stretchTransformView = button
+
+        if metrics.usesGlass {
+            button.scaleOnClick = true
+            button.layer?.cornerRadius = metrics.minSide / 2
+            button.layer?.masksToBounds = true
+            button.setGlassEffect(forceAppearance: glassForceAppearance)
+            self.stretchReferenceView = button
+            self.stretchTransformView = button
+        }
     }
 
     public var direction: TextButtonImageDirection = .left {
@@ -104,11 +106,9 @@ open class TextButtonBarView: BarView {
     }
 
     open override func fit(to maxWidth: CGFloat, transition: ContainedViewLayoutTransition = .immediate) -> CGFloat {
-        let pad = TextButtonBarView.horizontalPad
-        let pillHeight = TextButtonBarView.pillHeight
-        let addition = NSMakeSize(pad, 0)
-        _isFitted = button.sizeToFit(addition, NSMakeSize(maxWidth, pillHeight), thatFit: false, transition: transition)
-        return button.frame.width
+        let metrics = InterfaceStyle.current.barButton
+        _isFitted = button.sizeToFit(NSMakeSize(metrics.textPadding, 0), NSMakeSize(maxWidth, metrics.minSide), thatFit: false, transition: transition)
+        return button.frame.width + metrics.textMargin
     }
 
     public override var style: ControlStyle {
@@ -153,8 +153,13 @@ open class TextButtonBarView: BarView {
 
     override open func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        button.set(color: presentation.colors.text, for: .Normal)
-        button.set(background: .clear, for: .Normal)
+        if InterfaceStyle.current.barButton.followsBarPresentation, let controller {
+            button.set(color: controller.barPresentation.foregroundColor, for: .Normal)
+            button.set(background: controller.barPresentation.backgroundColor, for: .Normal)
+        } else {
+            button.set(color: presentation.colors.text, for: .Normal)
+            button.set(background: .clear, for: .Normal)
+        }
         button.updateLocalizationAndTheme(theme: theme)
     }
 
@@ -164,11 +169,11 @@ open class TextButtonBarView: BarView {
     }
 
     open override func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        let pillHeight = TextButtonBarView.pillHeight
-        let w = max(button.frame.width, isLoading ? pillHeight : 0)
-        let btnSize = NSMakeSize(w, pillHeight)
+        let height = button.frame.height
+        let w = max(button.frame.width, isLoading ? height : 0)
+        let btnSize = NSMakeSize(w, height)
         let x = floorToScreenPixels(backingScaleFactor, (size.width - w) / 2)
-        let y = floorToScreenPixels(backingScaleFactor, (size.height - pillHeight) / 2)
+        let y = floorToScreenPixels(backingScaleFactor, (size.height - height) / 2)
         transition.updateFrame(view: button, frame: NSMakeRect(x, y, btnSize.width, btnSize.height))
         button.updateLayout(size: btnSize, transition: transition)
         progressIndicator?.center()

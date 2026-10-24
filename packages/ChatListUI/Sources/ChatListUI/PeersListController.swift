@@ -1235,30 +1235,35 @@ public class PeerListContainerView : Control {
         let hasCompose = state.splitState != .minimisize && (state.isContacts || state.mode.isSavedMessages || state.mode == .plain || state.mode.groupId == .archive || state.mode.isCommunity)
         
         if hasCompose {
+            let header = ChatListStyle.current.header
             let current: ImageButton
             if let view = self.compose {
                 current = view
             } else {
-                current = ImageButton(frame: NSMakeRect(frame.width - 10 - 30, (statusHeight - 30)/2.0, 30, 30))
+                current = ImageButton(frame: NSMakeRect(frame.width - 10 - header.buttonSize.width, (statusHeight - header.buttonSize.height)/2.0, header.buttonSize.width, header.buttonSize.height))
                 current.layer?.cornerRadius = .cornerRadius
                 self.compose = current
                 current.autohighlight = false
                 current.animates = false
-                current.scaleOnClick = true
+                current.scaleOnClick = !header.buttonsShowPressedState
                 statusContainer.addSubview(current)
             }
+            let images: (normal: CGImage, pressed: CGImage, pressedBackground: NSColor)
             if state.isContacts {
-                current.set(image: theme.icons.contactsNewContact, for: .Normal)
-                current.set(image: theme.icons.contactsNewContact, for: .Hover)
+                images = (theme.icons.contactsNewContact, theme.icons.contactsNewContact, .clear)
                 current.setAccessibilityLabel(strings().voiceOverContactsAddContact)
             } else if state.mode.groupId == .archive || state.mode.isSavedMessages || state.mode.isCommunity {
-                current.set(image: theme.icons.chatActions.highlight(color: theme.colors.accent), for: .Normal)
-                current.set(image: theme.icons.chatActions.highlight(color: theme.colors.accent), for: .Hover)
+                images = (header.actionsImage(theme), theme.icons.chatActionsActive, .clear)
                 current.setAccessibilityLabel(strings().voiceOverCommonMore)
             } else {
-                current.set(image: theme.icons.composeNewChat, for: .Normal)
-                current.set(image: theme.icons.composeNewChat, for: .Hover)
+                images = (theme.icons.composeNewChat, theme.icons.composeNewChatActive, theme.colors.accent)
                 current.setAccessibilityLabel(strings().voiceOverNavigationCompose)
+            }
+            current.set(image: images.normal, for: .Normal)
+            current.set(image: images.normal, for: .Hover)
+            if header.buttonsShowPressedState {
+                current.set(image: images.pressed, for: .Highlight)
+                current.set(background: images.pressedBackground, for: .Highlight)
             }
             current.contextMenu = { [weak arguments] in
                 return arguments?.contextMenu()
@@ -1291,9 +1296,9 @@ public class PeerListContainerView : Control {
         }
         
         self.titleView.isHidden = (state.splitState == .minimisize) || (!mode.isPlain && !mode.isCommunity) || mode.isForumLike
-        
-        let componentSize = NSMakeSize(30, 30)
-        
+
+        let componentSize = ChatListStyle.current.header.buttonSize
+
         var controlPoint = NSMakePoint(frame.width - 10, floorToScreenPixels(backingScaleFactor, (containerView.frame.height - componentSize.height)/2.0))
         
         if let compose = self.compose {
@@ -1503,16 +1508,18 @@ public class PeerListContainerView : Control {
         borderView.backgroundColor = theme.colors.border
         forumSeparatorView.backgroundColor = theme.colors.border
 
-        self.backgroundColor = .clear
-        self.backgroundView.backgroundColor = .clear
+        let header = ChatListStyle.current.header
 
-        searchView.searchTheme = .init(theme.colors.background, theme.search.searchImage, theme.search.clearImage, {
+        self.backgroundColor = header.isOpaque ? theme.colors.background : .clear
+        self.backgroundView.backgroundColor = header.isOpaque ? theme.colors.listBackground : .clear
+
+        searchView.searchTheme = .init(header.searchBackground(theme), theme.search.searchImage, theme.search.clearImage, {
             return strings().chatListSearchPlaceholder
         }, theme.search.textColor, theme.search.placeholderColor)
-        searchView.layer?.borderWidth = 1
+        searchView.layer?.borderWidth = header.searchBorderWidth
         searchView.layer?.borderColor = theme.colors.border.withAlphaComponent(0.75).cgColor
 
-        self.containerView.backgroundColor = .clear
+        self.containerView.backgroundColor = header.isOpaque ? theme.colors.background : .clear
 
 
         super.updateLocalizationAndTheme(theme: theme)
@@ -1629,7 +1636,7 @@ public class PeerListContainerView : Control {
         
         var inset: CGFloat = 0
         
-        let containerSize = NSMakeSize(state.splitState == .minimisize ? 90 : size.width, offset)
+        let containerSize = NSMakeSize(state.splitState == .minimisize ? InterfaceStyle.current.split.minimizedPaneWidth : size.width, offset)
                 
         transition.updateFrame(view: self.containerView, frame: NSMakeRect(0, inset, containerSize.width, offset))
         
@@ -1652,7 +1659,7 @@ public class PeerListContainerView : Control {
         let statusHeight: CGFloat = self.statusHeight
 
 
-        let componentSize = NSMakeSize(30, 30)
+        let componentSize = ChatListStyle.current.header.buttonSize
                         
         
         var searchY: CGFloat = statusHeight
@@ -1885,8 +1892,11 @@ public class PeerListContainerView : Control {
     
     public func updateBottomControls(size: NSSize, transition: ContainedViewLayoutTransition) {
         var bottomControlsY = size.height
-        for view in [downloads as NSView?, removalUndo as NSView?].compactMap({ $0 }) {
-            let edge: CGFloat = 12
+        let controls: [(view: NSView, edge: CGFloat)] = [
+            downloads.map { ($0, ChatListStyle.current.downloads.edge) },
+            removalUndo.map { ($0, PeerListContainerView.removalUndoEdge) }
+        ].compactMap { $0 }
+        for (view, edge) in controls {
             let rect = NSMakeRect(edge, bottomControlsY - view.frame.height - edge, size.width - edge * 2, view.frame.height)
             transition.updateFrame(view: view, frame: rect)
             bottomControlsY = rect.minY
@@ -1918,9 +1928,11 @@ public class PeerListContainerView : Control {
         applyRemovalUndoVisibility(animated: animated)
     }
 
+    private static let removalUndoEdge: CGFloat = 12
+
     fileprivate func applyRemovalUndoVisibility(animated: Bool) {
         let transition: ContainedViewLayoutTransition = animated ? .animated(duration: 0.2, curve: .easeInOut) : .immediate
-        let edge: CGFloat = 12
+        let edge = PeerListContainerView.removalUndoEdge
         let allowed: Bool
         if let st = self.state {
             allowed = st.splitState != .minimisize && st.appear != .short
@@ -1958,7 +1970,7 @@ public class PeerListContainerView : Control {
 
     fileprivate func applyDownloadsVisibility(animated: Bool) {
         let transition: ContainedViewLayoutTransition = animated ? .animated(duration: 0.2, curve: .easeInOut) : .immediate
-        let edge: CGFloat = 12
+        let edge = ChatListStyle.current.downloads.edge
         let allowed: Bool
         if let st = self.state {
             let hideContent = st.splitState == .minimisize || st.appear == .short

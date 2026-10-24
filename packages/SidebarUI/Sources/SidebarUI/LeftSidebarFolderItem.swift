@@ -34,7 +34,8 @@ class LeftSidebarFolderItem: TableRowItem {
         var folderIcon = FolderIcon(folder).icon(for: selected ? .sidebarActive : .sidebar, image: environment.folderImage)
 
         let attr = NSMutableAttributedString()
-        attr.append(string: folder.title, color: selected ? theme.colors.accent : theme.colors.text, font: .medium(10))
+        let style = LeftSidebarStyle.current
+        attr.append(string: folder.title, color: style.titleColor(theme, selected), font: .medium(10))
         environment.applyInlineStickers(to: attr, entities: folder.entities, isPremium: context.isPremium, animated: folder.enableAnimations)
 
         nameLayout = TextViewLayout(attr, alignment: .center)
@@ -48,7 +49,7 @@ class LeftSidebarFolderItem: TableRowItem {
             let icon: CGImage?
             if unreadCount > 0 {
 
-                let textColor: NSColor = theme.colors.underSelectedColor
+                let textColor = style.badgeTextColor(theme, selected)
 
                 let attributedString = NSAttributedString.initialize(string: "\(unreadCount.prettyNumber)", color: textColor, font: .medium(.short))
                 let textLayout = TextNode.layoutText(maybeNode: nil,  attributedString, nil, 1, .start, NSMakeSize(CGFloat.greatestFiniteMagnitude, CGFloat.greatestFiniteMagnitude), nil, false, .center)
@@ -58,11 +59,7 @@ class LeftSidebarFolderItem: TableRowItem {
                 let badge = generateImage(size, rotatedContext: { size, ctx in
                     let rect = NSMakeRect(0, 0, size.width, size.height)
                     ctx.clear(rect)
-                    if selected || hasUnmutedUnread {
-                        ctx.setFillColor(theme.colors.accent.cgColor)
-                    } else {
-                        ctx.setFillColor(theme.colors.grayIcon.cgColor)
-                    }
+                    ctx.setFillColor(style.badgeColor(theme, selected, hasUnmutedUnread).cgColor)
                     ctx.round(size, floorToScreenPixels(size.height/2.0))
                     ctx.fill(rect)
 

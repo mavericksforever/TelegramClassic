@@ -59,8 +59,8 @@ open class Popover: NSObject {
 //        self.background.layer?.shadowOpacity = 0.4
         self.background.layer?.rasterizationScale = CGFloat(System.backingScale)
         self.background.layer?.isOpaque = false
-        self.background.layer?.cornerRadius = 18
-        
+        self.background.layer?.cornerRadius = InterfaceStyle.current.popoverCornerRadius
+
         let shadow = NSShadow()
         shadow.shadowBlurRadius = 4
         shadow.shadowColor = NSColor.black.withAlphaComponent(0.3)
@@ -146,7 +146,7 @@ open class Popover: NSObject {
     }
 
     static func clampedRadius(for size: NSSize) -> CGFloat {
-        return min(18, max(0, min(size.width, size.height) / 2))
+        return min(InterfaceStyle.current.popoverCornerRadius, max(0, min(size.width, size.height) / 2))
     }
 
     private func finishAppearance() {

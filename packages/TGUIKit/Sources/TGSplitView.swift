@@ -131,6 +131,10 @@ fileprivate class SplitMinimisizeView : Control {
 
     override func draw(_ layer: CALayer, in ctx: CGContext) {
         super.draw(layer, in: ctx)
+        if splitView?.delegate?.splitViewDrawBorder() == true {
+            ctx.setFillColor(presentation.colors.border.cgColor)
+            ctx.fill(NSMakeRect(floorToScreenPixels(backingScaleFactor, frame.width / 2), 0, .borderSize, frame.height))
+        }
     }
 }
 
@@ -567,9 +571,9 @@ public class SplitView : View {
                 let paneRect = NSMakeRect(x, 0, size.width, size.height)
                 let insets = obj.insets
 
-                let isLast = index == _controllers.count - 1
+                let underlaysLeadingPanes = index == _controllers.count - 1 && InterfaceStyle.current.split.floatingPanes
                 let rect: NSRect
-                if isLast {
+                if underlaysLeadingPanes {
                     obj.slotLeadingInset = paneRect.minX
                     obj.slotTrailingInset = trailingReserved
                     rect = NSMakeRect(0, paneRect.minY + insets.top, frame.width, max(0, paneRect.height - insets.top - insets.bottom))

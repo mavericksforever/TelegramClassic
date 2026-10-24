@@ -109,7 +109,7 @@ public class ChatDateStickItem : TableStickItem {
         }
         
         
-        self.layout = TextViewLayout(.initialize(string: text, color: TelegramUtilsHooks.shared.isLite(.blur) ? presentation.chatServiceItemTextColor : presentation.colors.text, font: .medium(presentation.fontSize)), maximumNumberOfLines: 1, truncationType: .end, alignment: .center)
+        self.layout = TextViewLayout(.initialize(string: text, color: ChatStyle.current.serviceGlassEnabled ? presentation.colors.text : presentation.chatServiceItemTextColor, font: .medium(presentation.fontSize)), maximumNumberOfLines: 1, truncationType: .end, alignment: .center)
 
         
         super.init(initialSize)
@@ -434,7 +434,7 @@ public class ChatDateStickView : TableStickView {
                     return true
                 })
             }
-            let usesGlass = !TelegramUtilsHooks.shared.isLite(.blur)
+            let usesGlass = ChatStyle.current.serviceGlassEnabled
             if let appliedColors = self.appliedColors, appliedColors.presentation === presentation, appliedColors.usesGlass == usesGlass {
                 return
             }

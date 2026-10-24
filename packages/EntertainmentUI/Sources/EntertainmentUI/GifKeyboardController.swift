@@ -335,7 +335,7 @@ public final class GifKeyboardView : View {
         
         transition.updateFrame(view: tableView, frame: NSMakeRect(0, tabs.frame.maxY, size.width, size.height))
 
-        transition.updateFrame(view: searchStatusView, frame: NSMakeRect(0, searchContainer.frame.maxY, size.width, max(0, size.height - searchContainer.frame.maxY - 56)))
+        transition.updateFrame(view: searchStatusView, frame: NSMakeRect(0, searchContainer.frame.maxY, size.width, max(0, size.height - searchContainer.frame.maxY - EntertainmentStyle.current.contentBottomInset)))
 
         if let restrictedView = restrictedView {
             transition.updateFrame(view: restrictedView, frame: size.bounds)

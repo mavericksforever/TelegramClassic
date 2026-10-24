@@ -50,7 +50,7 @@ class PeerMediaBlockRowItem<Context: AccountContextProtocol>: GeneralRowItem {
             if let temporaryHeight = temporaryHeight {
                 return temporaryHeight
             } else {
-                return (table?.frame.height ?? initialSize.height) - 64
+                return (table?.frame.height ?? initialSize.height) - NavigationBarStyle.defaultHeight
             }
         }
     }
@@ -152,7 +152,7 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
 
         item.controller.bar = .init(height: 0)
         item.controller._frameRect = bounds
-        item.controller.genericView.headerOverflow = 64
+        item.controller.genericView.headerOverflow = NavigationBarStyle.defaultHeight
        
         
         var scrollingInMediaTable: Bool = false
@@ -172,11 +172,12 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                 let itemY = table.rectOf(item: item).minY
                 let offsetY = table.liveDocumentOffset.y
 
-                scrollInner = offsetY + 64 >= itemY
+                let barHeight = NavigationBarStyle.defaultHeight
+                scrollInner = offsetY + barHeight >= itemY
                 let mediaTable = item.controller.genericView.mainTable
                 if let mediaTable = mediaTable {
-                    
-                    let offset = offsetY + 64 - itemY
+
+                    let offset = offsetY + barHeight - itemY
                     var updated = max(0, offset)
                     if mediaTable.documentSize.height <= item.height, updated > 0 {
                         updated = max(updated, 0)
@@ -201,7 +202,7 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                     
                     let point = item.controller.view.frame.origin
 
-                    item.controller.setProfileBlockVisible(offsetY + 64 >= point.y)
+                    item.controller.setProfileBlockVisible(offsetY + barHeight >= point.y)
                 }
             }
             
@@ -249,7 +250,7 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                         }
                     } else if updated {
                         DispatchQueue.main.async {
-                            item.table?.scroll(to: .top(id: item.stableId, innerId: nil, animated: animated, focus: .init(focus: false), inset: 64))
+                            item.table?.scroll(to: .top(id: item.stableId, innerId: nil, animated: animated, focus: .init(focus: false), inset: NavigationBarStyle.defaultHeight))
                         }
                     }
                 }
@@ -263,7 +264,7 @@ private final class PeerMediaBlockRowView<Context: AccountContextProtocol> : Tab
                             if let tableView = item.controller.genericView.mainTable, tableView.liveDocumentOffset.y <= -tableView.contentInsets.top {
                                 if !item.controller.unableToHide {
                                     scrollInner = false
-                                    item.table?.clipView.scroll(to: NSMakePoint(0, self.frame.minY - 64 ))
+                                    item.table?.clipView.scroll(to: NSMakePoint(0, self.frame.minY - NavigationBarStyle.defaultHeight))
                                     item.table?.scrollWheel(with: event)
                                     scrollingInMediaTable = false
                                     return true

@@ -9,12 +9,20 @@ open class MediaPreviewEditControl: View {
     private let crop = ImageButton()
     private let paint = ImageButton()
     private let delete = ImageButton()
-    private var glassView: NSView?
+    private var surfaceView: NSView?
     public override init() {
         super.init(frame: NSMakeRect(0, 0, 90, 30))
-        let glass = LiquidGlassView(frame: NSZeroRect, cornerRadius: 8, hasShadow: true, hasBorder: true)
-        addSubview(glass)
-        glassView = glass
+        let surface: View
+        switch MediaPreviewEditStyle.current.surface {
+        case let .glass(cornerRadius):
+            surface = LiquidGlassView(frame: NSZeroRect, cornerRadius: cornerRadius, hasShadow: true, hasBorder: true)
+        case let .capsule(color):
+            surface = View()
+            surface.backgroundColor = color
+            surface.layer?.cornerRadius = frame.height / 2
+        }
+        addSubview(surface)
+        surfaceView = surface
         layer?.masksToBounds = false
 
         addSubview(crop)
@@ -67,7 +75,7 @@ open class MediaPreviewEditControl: View {
             guard isVideo != oldValue else {
                 return
             }
-            crop.set(image: isVideo ? EditVideoIcons.edit.precomposed(theme.colors.text) : theme.icons.editor_crop, for: .Normal)
+            crop.set(image: isVideo ? EditVideoIcons.edit.precomposed(ChromeIconColors.current.mediaOverlay(theme.colors)) : theme.icons.editor_crop, for: .Normal)
             crop.setAccessibilityLabel(isVideo ? strings().voiceOverCommonEdit : strings().voiceOverCommonCrop)
             updateEditing()
         }
@@ -88,14 +96,14 @@ open class MediaPreviewEditControl: View {
     
     public var isInteractiveMedia: Bool = true {
         didSet {
-            glassView?.isHidden = !isInteractiveMedia
+            surfaceView?.isHidden = !isInteractiveMedia
             delete.set(image: isInteractiveMedia ? theme.icons.editor_delete : theme.icons.previewSenderDeleteFile, for: .Normal)
         }
     }
     
     public override func layout() {
         super.layout()
-        glassView?.frame = bounds
+        surfaceView?.frame = bounds
         if canEdit {
             crop.centerY(x: 3)
             if isVideo {

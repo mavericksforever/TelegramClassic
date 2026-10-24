@@ -157,7 +157,7 @@ open class Control: View {
     private weak var pendingAdditionalGlassEffectView: NSView?
 
     private func rebuildGlassTouchEffect() {
-        if let reference = stretchReferenceView {
+        if let reference = stretchReferenceView, InterfaceStyle.current.controls.stretchesOnPress {
             let transformHost = stretchTransformView ?? self
             self.wantsLayer = true
             reference.wantsLayer = true
@@ -261,7 +261,7 @@ open class Control: View {
     open func stateDidUpdate(_ state: ControlState) {
         if (self.scaleOnClick || self.scaleDownOnClick) && glassTouchEffect == nil {
             if state != previousState, isEnabled {
-                let pressed: CGFloat = self.scaleDownOnClick ? 0.97 : 1.03
+                let pressed: CGFloat = self.scaleDownOnClick ? 0.97 : InterfaceStyle.current.controls.pressScale
                 if state == .Highlight {
                     self.layer?.animateScaleSpring(from: 1, to: pressed, duration: 0.3, removeOnCompletion: false)
                 } else if self.layer?.animation(forKey: "transform") != nil, previousState == ControlState.Highlight {

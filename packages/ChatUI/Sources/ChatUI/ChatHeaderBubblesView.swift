@@ -231,7 +231,7 @@ private final class TitlePillView: Control {
 }
 
 
-final class ChatHeaderBubblesView: View, InteractionContentViewProtocol {
+final class ChatHeaderBubblesView: View, ChatTopChrome {
 
     static let bubbleHeight: CGFloat = 40
     static let topInset: CGFloat = 12
@@ -411,7 +411,7 @@ final class ChatHeaderBubblesView: View, InteractionContentViewProtocol {
     var doneHandler: (() -> Void)?
     var menuContextMenu: (() -> ContextMenu?)?
 
-    private var menuMode: MenuMode = .menu
+    private var menuMode: ChatHeaderMenuMode = .menu
 
     /// Most-recent chat theme used to render this view. Stored so helpers
     /// like `applyMenuMode` — which may be called outside the scope of
@@ -420,11 +420,6 @@ final class ChatHeaderBubblesView: View, InteractionContentViewProtocol {
     /// to the global app `theme` singleton, which is wrong for chats on a
     /// custom palette or wallpaper.
     private var currentChatTheme: TelegramPresentationTheme?
-
-    enum MenuMode {
-        case menu
-        case done
-    }
 
     init(frame frameRect: NSRect, chatInteraction: ChatInteraction) {
         self.chatInteraction = chatInteraction
@@ -617,7 +612,7 @@ final class ChatHeaderBubblesView: View, InteractionContentViewProtocol {
         }
     }
 
-    func setMenuMode(_ mode: MenuMode) {
+    func setMenuMode(_ mode: ChatHeaderMenuMode) {
         if menuMode != mode {
             menuMode = mode
             backButton.resetGlassTouchTracking()

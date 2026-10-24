@@ -642,9 +642,12 @@ private final class ChatListExpandView: View {
         titleView.userInteractionEnabled = false
         titleView.isSelectable = false
 
-        container.layer?.cornerRadius = 10
-        container.layer?.borderWidth = 1
+        let style = ChatListStyle.current.archiveStrip
+        container.layer?.cornerRadius = style.cornerRadius
+        container.layer?.borderWidth = style.borderWidth
 
+        iconView.isHidden = !style.showsIcons
+        arrowView.isHidden = !style.showsIcons
         container.addSubview(iconView)
         container.addSubview(titleView)
         container.addSubview(arrowView)
@@ -656,7 +659,7 @@ private final class ChatListExpandView: View {
 
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         let theme = theme as! TelegramPresentationTheme
-        container.backgroundColor = theme.colors.background.withAlphaComponent(0.4)
+        container.backgroundColor = ChatListStyle.current.archiveStrip.background(theme)
         container.layer?.borderColor = theme.colors.border.cgColor
 
         iconView.image = TelegramThemeHooks.shared.image(.iconFilterArchive).precomposed(theme.colors.grayText)
@@ -674,16 +677,16 @@ private final class ChatListExpandView: View {
 
     override func layout() {
         super.layout()
-        let inset: CGFloat = 5
-        container.frame = NSMakeRect(inset, 5, frame.width - inset * 2, frame.height - 5)
+        let inset = ChatListStyle.current.archiveStrip.inset
+        container.frame = NSMakeRect(inset, inset, frame.width - inset * 2, frame.height - inset)
 
         let spacing: CGFloat = 4
-        let totalWidth = iconView.frame.width + spacing + titleView.frame.width + arrowView.frame.width
-        var x = floorToScreenPixels(backingScaleFactor, (container.frame.width - totalWidth) / 2)
-        let cy = floorToScreenPixels(backingScaleFactor, (container.frame.height - iconView.frame.height) / 2)
+        let leading = iconView.isHidden ? 0 : iconView.frame.width + spacing
+        let trailing = arrowView.isHidden ? 0 : arrowView.frame.width
+        var x = floorToScreenPixels(backingScaleFactor, (container.frame.width - leading - titleView.frame.width - trailing) / 2)
 
-        iconView.setFrameOrigin(NSMakePoint(x, cy))
-        x += iconView.frame.width + spacing
+        iconView.setFrameOrigin(NSMakePoint(x, floorToScreenPixels(backingScaleFactor, (container.frame.height - iconView.frame.height) / 2)))
+        x += leading
         titleView.setFrameOrigin(NSMakePoint(x, floorToScreenPixels(backingScaleFactor, (container.frame.height - titleView.frame.height) / 2)))
         x += titleView.frame.width + 2
         arrowView.setFrameOrigin(NSMakePoint(x, floorToScreenPixels(backingScaleFactor, (container.frame.height - arrowView.frame.height) / 2)))
@@ -702,7 +705,7 @@ func makeChatListSelectionPlateLayer() -> SimpleLayer {
     let layer = SimpleLayer()
     layer.anchorPoint = .zero
     layer.zPosition = -1
-    layer.cornerRadius = 14
+    layer.cornerRadius = ChatListStyle.current.row.selectionCornerRadius
     if #available(macOS 10.15, *) {
         layer.cornerCurve = .continuous
     }
@@ -984,6 +987,45 @@ private final class ChatListRevealActionView: Control {
         let lottieYOffset: CGFloat = compactIcon ? 0 : 6
         lottie.frame = NSMakeRect(circleRect.midX - lottieDim / 2, circleRect.midY - lottieDim / 2 + lottieYOffset, lottieDim, lottieDim)
         titleLabel.centerX(y: circleRect.maxY + 4)
+    }
+}
+
+private final class ChatListRevealTileView: Control {
+    let fillColor: NSColor
+    private let lottie: LAnimationButton
+    private let titleLabel = TextViewLabel()
+
+    init(animation: String, title: String, fillColor: NSColor, titleColor: NSColor, side: CGFloat, autoplaySide: LButtonAutoplaySide?, rotated: Bool, keysToColor: [String]?, compactIcon: Bool) {
+        self.fillColor = fillColor
+        let lottieSize = compactIcon ? NSMakeSize(45, 45) : NSMakeSize(side - 20, side - 20)
+        let lottieOffset = compactIcon ? NSMakeSize(0, 9) : .zero
+        self.lottie = LAnimationButton(animation: animation, size: lottieSize, keysToColor: keysToColor, color: fillColor, offset: lottieOffset, autoplaySide: autoplaySide, rotated: rotated)
+
+        self.titleLabel.attributedString = .initialize(string: title, color: titleColor, font: .medium(11))
+        self.titleLabel.sizeToFit()
+
+        super.init(frame: NSMakeRect(0, 0, side, side))
+
+        set(background: fillColor, for: .Normal)
+        lottie.userInteractionEnabled = false
+        titleLabel.userInteractionEnabled = false
+
+        addSubview(lottie)
+        addSubview(titleLabel)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    required init(frame frameRect: NSRect) {
+        fatalError("init(frame:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        lottie.frame = bounds
+        titleLabel.centerX(y: frame.height - titleLabel.frame.height - 10)
     }
 }
 
@@ -2665,15 +2707,14 @@ public class ChatListRowView: TableRowView, RevealTableView {
         
         if item.groupId == .root {
 
-            let titleColor = theme.colors.text
-
             let unreadBackground = !item.markAsUnread ? theme.colors.revealAction_inactive_background : theme.colors.revealAction_accent_background
+            let unreadForeground = !item.markAsUnread ? theme.colors.revealAction_inactive_foreground : theme.colors.revealAction_accent_foreground
 
-            let unread = ChatListRevealActionView(animation: !item.markAsUnread ? "anim_read" : "anim_unread", title: !item.markAsUnread ? strings().chatListSwipingRead : strings().chatListSwipingUnread, tintColor: unreadBackground, titleColor: titleColor, autoplaySide: .right, keysToColor: !item.markAsUnread ? nil : ["Oval.Oval.Stroke 1"])
+            let unread = makeRevealAction(animation: !item.markAsUnread ? "anim_read" : "anim_unread", title: !item.markAsUnread ? strings().chatListSwipingRead : strings().chatListSwipingUnread, background: unreadBackground, foreground: unreadForeground, autoplaySide: .right, keysToColor: !item.markAsUnread ? nil : ["Oval.Oval.Stroke 1"])
 
-            let mute = ChatListRevealActionView(animation: item.isMuted ? "anim_unmute" : "anim_mute", title: item.isMuted ? strings().chatListSwipingUnmute : strings().chatListSwipingMute, tintColor: theme.colors.revealAction_neutral2_background, titleColor: titleColor, autoplaySide: .right, keysToColor: item.isMuted ? nil : ["un Outlines.Group 1.Stroke 1"])
+            let mute = makeRevealAction(animation: item.isMuted ? "anim_unmute" : "anim_mute", title: item.isMuted ? strings().chatListSwipingUnmute : strings().chatListSwipingMute, background: theme.colors.revealAction_neutral2_background, foreground: theme.colors.revealAction_neutral2_foreground, autoplaySide: .right, keysToColor: item.isMuted ? nil : ["un Outlines.Group 1.Stroke 1"])
 
-            let pin = ChatListRevealActionView(animation: !item.isPinned ? "anim_pin" : "anim_unpin", title: !item.isPinned ? strings().chatListSwipingPin : strings().chatListSwipingUnpin, tintColor: theme.colors.revealAction_constructive_background, titleColor: titleColor, autoplaySide: .left, keysToColor: !item.isPinned ? nil : ["un Outlines.Group 1.Stroke 1"])
+            let pin = makeRevealAction(animation: !item.isPinned ? "anim_pin" : "anim_unpin", title: !item.isPinned ? strings().chatListSwipingPin : strings().chatListSwipingUnpin, background: theme.colors.revealAction_constructive_background, foreground: theme.colors.revealAction_constructive_foreground, autoplaySide: .left, keysToColor: !item.isPinned ? nil : ["un Outlines.Group 1.Stroke 1"])
             
             pin.set(handler: { [weak self] _ in
                 guard let item = self?.item as? ChatListRowItem else {return}
@@ -2692,9 +2733,9 @@ public class ChatListRowView: TableRowView, RevealTableView {
             
             
             let isUnarchive = item.associatedGroupId != .root
-            let archive = ChatListRevealActionView(animation: isUnarchive ? "anim_unarchive" : "anim_archive", title: isUnarchive ? strings().chatListSwipingUnarchive : strings().chatListSwipingArchive, tintColor: theme.colors.revealAction_inactive_background, titleColor: titleColor, autoplaySide: .left, keysToColor: ["box2.box2.Fill 1"], compactIcon: isUnarchive)
+            let archive = makeRevealAction(animation: isUnarchive ? "anim_unarchive" : "anim_archive", title: isUnarchive ? strings().chatListSwipingUnarchive : strings().chatListSwipingArchive, background: theme.colors.revealAction_inactive_background, foreground: theme.colors.revealAction_inactive_foreground, autoplaySide: .left, keysToColor: ["box2.box2.Fill 1"], compactIcon: isUnarchive)
 
-            let delete = ChatListRevealActionView(animation: "anim_delete", title: strings().chatListSwipingDelete, tintColor: theme.colors.revealAction_destructive_background, titleColor: titleColor, autoplaySide: .left)
+            let delete = makeRevealAction(animation: "anim_delete", title: strings().chatListSwipingDelete, background: theme.colors.revealAction_destructive_background, foreground: theme.colors.revealAction_destructive_foreground, autoplaySide: .left)
             
             
             archive.set(handler: { [weak self] _ in
@@ -2736,30 +2777,23 @@ public class ChatListRowView: TableRowView, RevealTableView {
             
             if !item.isTopic {
                 revealLeftView.addSubview(unread)
-                revealLeftView.backgroundColor = .clear
             }
-            
-            unread.setFrameSize(NSMakeSize(unread.idealWidth, frame.height))
-            mute.setFrameSize(NSMakeSize(mute.idealWidth, frame.height))
-            archive.setFrameSize(NSMakeSize(archive.idealWidth, frame.height))
-            pin.setFrameSize(NSMakeSize(pin.idealWidth, frame.height))
-            delete.setFrameSize(NSMakeSize(delete.idealWidth, frame.height))
 
             layoutRevealActions(in: revealRightView)
             layoutRevealActions(in: revealLeftView)
 
-            revealRightView.backgroundColor = .clear
+            revealRightView.backgroundColor = revealFill(of: revealRightView)
+            revealLeftView.backgroundColor = revealFill(of: revealLeftView)
 
             revealRightView.setFrameSize(rightRevealWidth, frame.height)
             revealLeftView.setFrameSize(leftRevealWidth, frame.height)
         } else {
-            
-            
-            let collapse = ChatListRevealActionView(animation: "anim_hide", title: strings().chatListRevealActionCollapse, tintColor: theme.colors.revealAction_inactive_background, titleColor: theme.colors.text, autoplaySide: .left, keysToColor: ["Path 2.Path 2.Fill 1"])
 
-            collapse.setFrameSize(collapse.idealWidth, frame.height)
+
+            let collapse = makeRevealAction(animation: "anim_hide", title: strings().chatListRevealActionCollapse, background: theme.colors.revealAction_inactive_background, foreground: theme.colors.revealAction_inactive_foreground, autoplaySide: .left, keysToColor: ["Path 2.Path 2.Fill 1"])
+
             revealRightView.addSubview(collapse)
-            revealRightView.backgroundColor = .clear
+            revealRightView.backgroundColor = revealFill(of: revealRightView)
             layoutRevealActions(in: revealRightView)
             revealRightView.setFrameSize(rightRevealWidth, frame.height)
             
@@ -2773,18 +2807,17 @@ public class ChatListRowView: TableRowView, RevealTableView {
             
             if let hideStatus = item.hideStatus {
 
-                let hideOrPin: ChatListRevealActionView
+                let hideOrPin: Control
 
                 switch hideStatus {
                 case .hidden:
-                    hideOrPin = ChatListRevealActionView(animation: "anim_hide", title: strings().chatListRevealActionPin, tintColor: theme.colors.revealAction_accent_background, titleColor: theme.colors.text, autoplaySide: .left, rotated: true, keysToColor: ["Path 2.Path 2.Fill 1"])
+                    hideOrPin = makeRevealAction(animation: "anim_hide", title: strings().chatListRevealActionPin, background: theme.colors.revealAction_accent_background, foreground: theme.colors.revealAction_accent_foreground, autoplaySide: .left, rotated: true, keysToColor: ["Path 2.Path 2.Fill 1"])
                 default:
-                    hideOrPin = ChatListRevealActionView(animation: "anim_hide", title: strings().chatListRevealActionHide, tintColor: theme.colors.revealAction_inactive_background, titleColor: theme.colors.text, autoplaySide: .left, rotated: false, keysToColor: ["Path 2.Path 2.Fill 1"])
+                    hideOrPin = makeRevealAction(animation: "anim_hide", title: strings().chatListRevealActionHide, background: theme.colors.revealAction_inactive_background, foreground: theme.colors.revealAction_inactive_foreground, autoplaySide: .left, rotated: false, keysToColor: ["Path 2.Path 2.Fill 1"])
                 }
 
-                hideOrPin.setFrameSize(hideOrPin.idealWidth, frame.height)
                 revealLeftView.addSubview(hideOrPin)
-                revealLeftView.backgroundColor = .clear
+                revealLeftView.backgroundColor = revealFill(of: revealLeftView)
                 layoutRevealActions(in: revealLeftView)
                 revealLeftView.setFrameSize(leftRevealWidth, frame.height)
 
@@ -2826,7 +2859,24 @@ public class ChatListRowView: TableRowView, RevealTableView {
         return containerView.frame.width
     }
 
-    private static let revealActionInset: CGFloat = 6
+    private static var revealActionInset: CGFloat {
+        return ChatListStyle.current.reveal.actionInset
+    }
+
+    private func makeRevealAction(animation: String, title: String, background: NSColor, foreground: NSColor, autoplaySide: LButtonAutoplaySide, rotated: Bool = false, keysToColor: [String]? = nil, compactIcon: Bool = false) -> Control {
+        switch ChatListStyle.current.reveal.actionShape {
+        case .captionedCircle:
+            let action = ChatListRevealActionView(animation: animation, title: title, tintColor: background, titleColor: theme.colors.text, autoplaySide: autoplaySide, rotated: rotated, keysToColor: keysToColor, compactIcon: compactIcon)
+            action.setFrameSize(NSMakeSize(action.idealWidth, frame.height))
+            return action
+        case .filledTile:
+            return ChatListRevealTileView(animation: animation, title: title, fillColor: background, titleColor: foreground, side: frame.height, autoplaySide: autoplaySide, rotated: rotated, keysToColor: keysToColor, compactIcon: compactIcon)
+        }
+    }
+
+    private func revealFill(of container: View) -> NSColor {
+        return (container.subviews.last as? ChatListRevealTileView)?.fillColor ?? .clear
+    }
 
     private func layoutRevealActions(in container: View) {
         let inset = ChatListRowView.revealActionInset
@@ -3327,11 +3377,12 @@ public class ChatListRowView: TableRowView, RevealTableView {
         
         containerView.frame = NSMakeRect(-additionalDelta, item.isCollapsed ? -item.height : 0, frame.width - .borderSize, item.height)
 
+        let rowStyle = ChatListStyle.current.row
         let selectionFrame: NSRect
-        if item.shouldHideContent {
+        if item.shouldHideContent, rowStyle.compactSelectionHugsAvatar {
             selectionFrame = photo.frame.insetBy(dx: -7, dy: -7)
         } else {
-            selectionFrame = containerView.bounds.insetBy(dx: 3, dy: 3)
+            selectionFrame = containerView.bounds.insetBy(dx: rowStyle.selectionInset, dy: rowStyle.selectionInset)
         }
         if animateSelectionChange, !selectionBackgroundLayer.isHidden, selectionBackgroundLayer.frame != selectionFrame {
             chatListAnimateLayerFrame(selectionBackgroundLayer, to: selectionFrame)

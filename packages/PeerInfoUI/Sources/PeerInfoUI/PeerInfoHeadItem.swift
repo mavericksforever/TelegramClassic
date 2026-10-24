@@ -436,7 +436,7 @@ class PeerInfoHeadItem<Context: AccountContextProtocol>: GeneralRowItem {
                 height += 20
             }
         }
-        height += 20
+        height += PeerInfoStyle.current.headerTopInset
         return height
     }
     
@@ -513,15 +513,20 @@ class PeerInfoHeadItem<Context: AccountContextProtocol>: GeneralRowItem {
         guard let nameColor = nameColor, threadId == nil, !editing else {
             return theme.colors.background
         }
-        let base: NSColor
-        if let emojiStatus = peer?.emojiStatus, case let .starGift(_, _, _, _, _, innerColor, outerColor, _, _) = emojiStatus.content {
-            let inner = NSColor(rgb: UInt32(bitPattern: innerColor))
-            let outer = NSColor(rgb: UInt32(bitPattern: outerColor))
-            base = outer.interpolateTo(inner, fraction: 0.1) ?? outer
-        } else {
-            base = context.peerNameColors.getProfile(nameColor).main
+        switch PeerInfoStyle.current.actionFill {
+        case .blended:
+            let base: NSColor
+            if let emojiStatus = peer?.emojiStatus, case let .starGift(_, _, _, _, _, innerColor, outerColor, _, _) = emojiStatus.content {
+                let inner = NSColor(rgb: UInt32(bitPattern: innerColor))
+                let outer = NSColor(rgb: UInt32(bitPattern: outerColor))
+                base = outer.interpolateTo(inner, fraction: 0.1) ?? outer
+            } else {
+                base = context.peerNameColors.getProfile(nameColor).main
+            }
+            return profileButtonColor(over: base, isDark: theme.colors.isDark)
+        case let .translucentAccent(alpha):
+            return accentColor.withAlphaComponent(alpha)
         }
-        return profileButtonColor(over: base, isDark: theme.colors.isDark)
     }
     
     var navigationButtonColor: NSColor? {
@@ -804,7 +809,7 @@ class PeerInfoHeadItem<Context: AccountContextProtocol>: GeneralRowItem {
         statusLayout = TextViewLayout(result.status, maximumNumberOfLines: 1, alignment: threadData != nil ? .center : .left, alwaysStaticItems: true)
         
         
-        super.init(initialSize, stableId: stableId, viewType: viewType, inset: NSEdgeInsets(left: 8, right: 8, top: 8))
+        super.init(initialSize, stableId: stableId, viewType: viewType, inset: PeerInfoStyle.current.headerRowInset)
         
         
         if let cachedData = peerView.cachedData as? CachedChannelData, threadData == nil, let peer = peer, peer.isGroup || peer.isSupergroup || peer.isGigagroup {
@@ -1638,8 +1643,8 @@ private final class PeerInfoHeadView<Context: AccountContextProtocol> : GeneralC
         
         photoView.setFrameSize(NSMakeSize(120, 120))
 
-        
-        
+        containerView.clipsContent = !PeerInfoStyle.current.headerFillsRow
+
         addSubview(backgroundView)
         
         photoContainer.addSubview(photoView)
@@ -1847,7 +1852,9 @@ private final class PeerInfoHeadView<Context: AccountContextProtocol> : GeneralC
         statusContainerSize = NSMakeSize(statusContainer.subviewsWidthSize.width + 4, statusContainer.subviewsWidthSize.height)
         
 
-        transition.updateFrame(view: backgroundView, frame: NSRect(x: 0, y: -110, width: containerView.frame.width, height: containerView.frame.height + 110))
+        let bleed = PeerInfoStyle.current.headerFillsRow ? containerView.frame.minX : 0
+        let backgroundFrame = NSRect(x: -bleed, y: -110, width: containerView.frame.width + bleed * 2, height: containerView.frame.height + 110)
+        transition.updateFrame(view: backgroundView, frame: backgroundFrame)
         backgroundView.updateLayout(size: backgroundView.frame.size, transition: transition)
         
         transition.updateFrame(view: spawnGiftsView, frame: NSRect(origin: .zero, size: containerView.frame.size))
@@ -1856,9 +1863,8 @@ private final class PeerInfoHeadView<Context: AccountContextProtocol> : GeneralC
             return
         }
 
-        transition.updateFrame(view: photoContainer, frame: photoContainer.centerFrameX(y: 20))
+        transition.updateFrame(view: photoContainer, frame: photoContainer.centerFrameX(y: PeerInfoStyle.current.headerTopInset))
         if let uniqueBackground, let content = uniqueBackgroundContent {
-            let backgroundFrame = NSRect(x: 0, y: -110, width: containerView.frame.width, height: containerView.frame.height + 110)
             transition.updateFrame(view: uniqueBackground, frame: backgroundFrame)
             let avatarCenter = NSMakePoint(backgroundFrame.width / 2, photoContainer.frame.midY - backgroundFrame.minY)
             uniqueBackground.update(context: item.context, content: content, style: .profile(avatarCenter: avatarCenter, avatarSize: photoContainer.frame.width, defaultHeight: containerView.frame.height, gradientCenter: NSMakePoint(0.5, 0.45)))
@@ -1873,7 +1879,7 @@ private final class PeerInfoHeadView<Context: AccountContextProtocol> : GeneralC
         }
 
         if let emoji = emojiSpawn {
-            transition.updateFrame(view: emoji, frame: emoji.centerFrameX(y: 20))
+            transition.updateFrame(view: emoji, frame: emoji.centerFrameX(y: PeerInfoStyle.current.headerTopInset))
         }
 
         if item.isTopic {
@@ -1924,7 +1930,7 @@ private final class PeerInfoHeadView<Context: AccountContextProtocol> : GeneralC
         }
         if let musicView {
             let stripHeight = PeerInfoMusicView.height(colorful: item.colorfulProfile)
-            transition.updateFrame(view: musicView, frame: NSMakeRect(0, containerView.frame.height - stripHeight, containerView.frame.width, stripHeight))
+            transition.updateFrame(view: musicView, frame: NSMakeRect(-bleed, containerView.frame.height - stripHeight, containerView.frame.width + bleed * 2, stripHeight))
         }
 
         transition.updateFrame(view: statusView, frame: statusView.centerFrameY(x: statusOffset))
@@ -2046,7 +2052,7 @@ private final class PeerInfoHeadView<Context: AccountContextProtocol> : GeneralC
 
             for (i, item) in items.enumerated() {
                 let view = actionsView.subviews[i] as! ActionButton
-                view.updateAndLayout(item: item, bgColor: rowItem.actionColor, useGlass: useGlass)
+                view.updateAndLayout(item: item, bgColor: rowItem.actionColor, useGlass: useGlass, cornerRadius: PeerInfoStyle.current.actionCornerRadius)
                 if item.subItems?.isEmpty == false, let menu = view.contextMenu {
                     view.contextMenu = {
                         return menu()

@@ -173,11 +173,7 @@ private class ModalInteractionsContainer : View {
         borderView?.backgroundColor = pres.border
 
         let shadowColor = interactions.singleButton ? pres.listBackground : pres.background
-        if interactions.contentFlowsBehind {
-            backgroundColor = .clear
-        } else {
-            backgroundColor = pres.background
-        }
+        backgroundColor = barBackground
         shadowEdgeColor = shadowColor
 
         if interactions.singleButton {
@@ -259,7 +255,7 @@ private class ModalInteractionsContainer : View {
         }
 
         super.init()
-        self.backgroundColor = interactions.contentFlowsBehind ? .clear : interactions.customTheme().background
+        self.backgroundColor = barBackground
         if let cancel = interactions.cancel {
             cancelView?.set(handler: { _ in
                 cancel()
@@ -284,10 +280,10 @@ private class ModalInteractionsContainer : View {
         self.layer?.masksToBounds = false
 
         shadowEdgeView.isEventLess = true
-        shadowEdgeView.isHidden = !interactions.showsShadow
+        shadowEdgeView.isHidden = !showsShadowGradient
         addSubview(shadowEdgeView)
 
-        backgroundView.backgroundColor = interactions.contentFlowsBehind ? .clear : interactions.customTheme().listBackground
+        backgroundView.backgroundColor = coversContent ? interactions.customTheme().listBackground : .clear
 
 
         if interactions.singleButton {
@@ -503,7 +499,7 @@ private class ModalInteractionsContainer : View {
         }
 
         if let borderView = borderView {
-            borderView.isHidden = interactions.contentFlowsBehind
+            borderView.isHidden = !coversContent
             transition.updateFrame(view: borderView, frame: NSMakeRect(0, 0, size.width, .borderSize))
         }
         
@@ -525,7 +521,23 @@ private class ModalInteractionsContainer : View {
     }
 
     fileprivate func setShadowGradientHidden(_ hidden: Bool) {
-        shadowEdgeView.isHidden = hidden || !interactions.showsShadow
+        shadowEdgeView.isHidden = hidden || !showsShadowGradient
+    }
+
+    private var coversContent: Bool {
+        return !interactions.contentFlowsBehind || InterfaceStyle.current.modal.opaqueChrome
+    }
+
+    private var barBackground: NSColor {
+        let pres = interactions.customTheme()
+        if InterfaceStyle.current.modal.opaqueChrome {
+            return pres.activeBackground
+        }
+        return interactions.contentFlowsBehind ? .clear : pres.background
+    }
+
+    private var showsShadowGradient: Bool {
+        return interactions.showsShadow && !InterfaceStyle.current.modal.opaqueChrome
     }
 }
 
@@ -551,6 +563,7 @@ private final class ModalHeaderView: View {
 
         shadowEdgeView.isEventLess = true
         shadowEdgeView.bgColor = customTheme().listBackground.withAlphaComponent(0.7)
+        shadowEdgeView.isHidden = InterfaceStyle.current.modal.opaqueChrome
 
         contentBlurView.isEventLess = true
         contentBlurView.isHidden = true
@@ -738,8 +751,9 @@ private final class ModalHeaderView: View {
     }
     
     private func updateBackground(animated: Bool) {
-        background = .clear
-        borderColor = .clear
+        let drawsBar = InterfaceStyle.current.modal.opaqueChrome && !isEdgeHidden
+        background = drawsBar ? customTheme().activeBackground : .clear
+        borderColor = drawsBar ? customTheme().border : .clear
         if customTheme().hideUnactiveText {
             self.titleView.change(opacity: state == .normal ? 0 : 1, animated: animated)
         } else {
@@ -783,11 +797,11 @@ private final class ModalHeaderView: View {
     }
 
     fileprivate func setShadowGradientHidden(_ hidden: Bool) {
-        shadowEdgeView.isHidden = hidden
+        shadowEdgeView.isHidden = hidden || InterfaceStyle.current.modal.opaqueChrome
     }
 
     fileprivate func setContentBlurHidden(_ hidden: Bool) {
-        contentBlurView.isHidden = hidden
+        contentBlurView.isHidden = hidden || InterfaceStyle.current.modal.opaqueChrome
     }
 }
 
@@ -1376,7 +1390,7 @@ public class Modal: NSObject {
     private func updateContentMask(animated: Bool = false) {
         guard let controller = controller, !controller.contentBelowBackground else { return }
 
-        let useMask = (interactions?.shadowAsContentMask ?? true) && (interactions?.contentFlowsBehind ?? true)
+        let useMask = !InterfaceStyle.current.modal.opaqueChrome && (interactions?.shadowAsContentMask ?? true) && (interactions?.contentFlowsBehind ?? true)
 
         if !useMask {
             if controller.view.layer?.mask === contentMaskLayer {

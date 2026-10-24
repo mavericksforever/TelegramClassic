@@ -318,12 +318,21 @@ private func generateChatAction(_ image: CGImage, background: NSColor) -> CGImag
     return generateImage(NSMakeSize(36, 36), contextGenerator: { size, ctx in
         let rect = CGRect(origin: CGPoint(), size: size)
         ctx.clear(rect)
-        
+
         ctx.setFillColor(NSColor.clear.cgColor)
         ctx.fillEllipse(in: rect)
         ctx.draw(image, in: rect.focus(image.backingSize))
-        
+
     })!
+}
+
+private func generateChatHeaderAction(_ image: NSImage, palette: ColorPalette, active: Bool) -> CGImage {
+    switch InterfaceStyleKind.current {
+    case .liquidGlass:
+        return image.precomposed(active ? palette.text.withAlphaComponent(0.8) : palette.text)
+    case .classic:
+        return generateChatAction(image.precomposed(palette.accentIcon), background: active ? palette.grayIcon.withAlphaComponent(0.1) : palette.background)
+    }
 }
 
 private func generateTodoSelection(color: NSColor) -> CGImage {
@@ -963,10 +972,24 @@ func generateLockerHead(_ color: NSColor, backgroundColor: NSColor) -> CGImage {
     })!
 }
 
+private func drawScrollerPlate(in ctx: CGContext, size: NSSize, backgroundColor: NSColor, border: NSColor) {
+    if !InterfaceStyle.current.controls.drawsUntintedGlass {
+        let rect = CGRect(origin: CGPoint(x: 1.0, y: 1.0), size: CGSize(width: size.width - 2.0, height: size.height - 2.0))
+        ctx.setFillColor(backgroundColor.cgColor)
+        ctx.fillEllipse(in: rect)
+        if border != .clear {
+            ctx.setLineWidth(1.0)
+            ctx.setStrokeColor(border.withAlphaComponent(0.7).cgColor)
+            ctx.strokeEllipse(in: rect)
+        }
+    }
+}
+
 private func generateChatMention(image: NSImage, backgroundColor: NSColor, border: NSColor, foregroundColor: NSColor) -> CGImage {
     return generateImage(NSMakeSize(38, 38), contextGenerator: { size, ctx in
         ctx.clear(CGRect(origin: CGPoint(), size: size))
-       
+        drawScrollerPlate(in: ctx, size: size, backgroundColor: backgroundColor, border: border)
+
         let icon = image.precomposed(foregroundColor)
         let imageRect = NSMakeRect(floorToScreenPixels(System.backingScale, (size.width - icon.backingSize.width) / 2), floorToScreenPixels(System.backingScale, (size.height - icon.backingSize.height) / 2), icon.backingSize.width, icon.backingSize.height)
         ctx.draw(icon, in: imageRect)
@@ -976,7 +999,8 @@ private func generateChatMention(image: NSImage, backgroundColor: NSColor, borde
 private func generateChatFailed(backgroundColor: NSColor, border: NSColor, foregroundColor: NSColor) -> CGImage {
     return generateImage(NSMakeSize(38, 38), contextGenerator: { size, ctx in
         ctx.clear(CGRect(origin: CGPoint(), size: size))
-        
+        drawScrollerPlate(in: ctx, size: size, backgroundColor: backgroundColor, border: .clear)
+
         let icon = TelegramThemeHooks.shared.image(.iconDialogSendingError).precomposed(foregroundColor)
         let imageRect = NSMakeRect(floorToScreenPixels(System.backingScale, (size.width - icon.backingSize.width) / 2), floorToScreenPixels(System.backingScale, (size.height - icon.backingSize.height) / 2), icon.backingSize.width, icon.backingSize.height)
         ctx.draw(icon, in: imageRect)
@@ -1182,7 +1206,8 @@ public func generateClockMinImage(_ color: NSColor) -> CGImage {
 private func  generateChatScrolldownImage(backgroundColor: NSColor, borderColor: NSColor, arrowColor: NSColor, reversed: Bool = false) -> CGImage {
     let generator:(NSSize, CGContext)->Void = { size, context in
         context.clear(CGRect(origin: CGPoint(), size: size))
-        
+        drawScrollerPlate(in: context, size: size, backgroundColor: backgroundColor, border: borderColor)
+
         context.setStrokeColor(arrowColor.cgColor)
         context.setLineWidth(1.0)
         let position = CGPoint(x: 9.0 - 0.5, y: 23.0)
@@ -1283,11 +1308,11 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                verifiedImageSelected: { generateDialogVerify(background: palette.underSelectedColor, foreground: palette.basicAccent) },
                                                errorImage: { TelegramThemeHooks.shared.image(.iconMessageSentFailed).precomposed(flipVertical: true) },
                                                errorImageSelected: { TelegramThemeHooks.shared.image(.iconDialogSendingError).precomposed(flipVertical: true) },
-                                               chatSearch: { TelegramThemeHooks.shared.image(.iconSearchChatMessages).precomposed(palette.text) },
-                                               chatSearchActive: { TelegramThemeHooks.shared.image(.iconSearchChatMessages).precomposed(palette.text.withAlphaComponent(0.8)) },
+                                               chatSearch: { generateChatHeaderAction(TelegramThemeHooks.shared.image(.iconSearchChatMessages), palette: palette, active: false) },
+                                               chatSearchActive: { generateChatHeaderAction(TelegramThemeHooks.shared.image(.iconSearchChatMessages), palette: palette, active: true) },
                                                chatCall: {  generateChatAction(TelegramThemeHooks.shared.image(.iconCallNavigationHeader).precomposed(palette.accentIcon), background: palette.background)  },
                                                chatCallActive: { generateChatAction( TelegramThemeHooks.shared.image(.iconCallNavigationHeader).precomposed(palette.accentIcon), background: palette.grayIcon.withAlphaComponent(0.1)) },
-                                               chatActions: { TelegramThemeHooks.shared.image(.iconChatActionsActive).precomposed(palette.text) },
+                                               chatActions: { generateChatHeaderAction(TelegramThemeHooks.shared.image(.iconChatActionsActive), palette: palette, active: false) },
                                                chatFailedCall_incoming: { TelegramThemeHooks.shared.image(.iconMessageCallIncoming).precomposed(palette.redUI) },
                                                chatFailedCall_outgoing:  { TelegramThemeHooks.shared.image(.iconMessageCallOutgoing).precomposed(palette.redUI) },
                                                chatCall_incoming:  { TelegramThemeHooks.shared.image(.iconMessageCallIncoming).precomposed(palette.greenUI) },
@@ -1357,19 +1382,19 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                chatSearchDown: { TelegramThemeHooks.shared.image(.iconSearchArrow).precomposed(palette.accentIcon, flipVertical:true) },
                                                chatSearchDownDisabled: { TelegramThemeHooks.shared.image(.iconSearchArrow).precomposed(palette.grayIcon, flipVertical:true) },
                                                chatSearchCalendar: { TelegramThemeHooks.shared.image(.iconCalendar).precomposed(palette.accentIcon) },
-                                               dismissAccessory: { TelegramThemeHooks.shared.image(.iconChatSearchCancel).precomposed(palette.grayIcon) },
-                                               chatScrollUp: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, arrowColor: palette.text) },
-                                               chatScrollUpActive: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, arrowColor: palette.text) },
-                                               chatScrollDown: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, arrowColor: palette.text, reversed: true) },
-                                               chatScrollDownActive: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, arrowColor: palette.text, reversed: true) },
+                                               dismissAccessory: { TelegramThemeHooks.shared.image(.iconChatSearchCancel).precomposed(ChromeIconColors.current.primary(palette)) },
+                                               chatScrollUp: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, arrowColor: ChromeIconColors.current.primary(palette)) },
+                                               chatScrollUpActive: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, arrowColor: ChromeIconColors.current.active(palette)) },
+                                               chatScrollDown: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, arrowColor: ChromeIconColors.current.primary(palette), reversed: true) },
+                                               chatScrollDownActive: { generateChatScrolldownImage(backgroundColor: palette.background, borderColor: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, arrowColor: ChromeIconColors.current.active(palette), reversed: true) },
                                                chatSendMessage: { TelegramThemeHooks.shared.image(.iconSendMessage).precomposed(palette.accentIcon) },
                                                chatSaveEditedMessage: { generateSendIcon(TelegramThemeHooks.shared.image(.iconSaveEditedMessage), palette.accentIcon) },
                                                chatRecordVoice: { TelegramThemeHooks.shared.image(.iconRecordVoice).precomposed(palette.grayIcon) },
-                                               chatEntertainment: { TelegramThemeHooks.shared.image(.iconEntertainments).precomposed(palette.darkGrayText) },
-                                               chatInlineDismiss: { TelegramThemeHooks.shared.image(.iconInlineResultCancel).precomposed(palette.darkGrayText) },
+                                               chatEntertainment: { TelegramThemeHooks.shared.image(.iconEntertainments).precomposed(ChromeIconColors.current.secondary(palette)) },
+                                               chatInlineDismiss: { TelegramThemeHooks.shared.image(.iconInlineResultCancel).precomposed(ChromeIconColors.current.secondary(palette)) },
                                                chatActiveReplyMarkup: { TelegramThemeHooks.shared.image(.iconReplyMarkupButton).precomposed(palette.accentIcon) },
-                                               chatDisabledReplyMarkup: { TelegramThemeHooks.shared.image(.iconReplyMarkupButton).precomposed(palette.darkGrayText) },
-                                               chatSecretTimer: { TelegramThemeHooks.shared.image(.iconSecretTimer).precomposed(palette.darkGrayText) },
+                                               chatDisabledReplyMarkup: { TelegramThemeHooks.shared.image(.iconReplyMarkupButton).precomposed(ChromeIconColors.current.secondary(palette)) },
+                                               chatSecretTimer: { TelegramThemeHooks.shared.image(.iconSecretTimer).precomposed(ChromeIconColors.current.secondary(palette)) },
                                                chatForwardMessagesActive: { TelegramThemeHooks.shared.image(.iconMessageActionPanelForward).precomposed(palette.accentIcon) },
                                                chatForwardMessagesInactive: { TelegramThemeHooks.shared.image(.iconMessageActionPanelForward).precomposed(palette.grayIcon) },
                                                chatDeleteMessagesActive: { TelegramThemeHooks.shared.image(.iconMessageActionPanelDelete).precomposed(palette.redUI) },
@@ -1479,7 +1504,7 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                chatActionDeleteChat: { TelegramThemeHooks.shared.image(.iconMessageActionPanelDelete).precomposed(palette.accentIcon) },
                                                dismissPinned: { TelegramThemeHooks.shared.image(.iconChatSearchCancel).precomposed(palette.accentIcon) },
                                                chatActionsActive: { generateChatAction(TelegramThemeHooks.shared.image(.iconChatActionsActive).precomposed(palette.accentIcon), background: palette.grayIcon.withAlphaComponent(0.1)) },
-                                               chatEntertainmentSticker: { TelegramThemeHooks.shared.image(.iconChatEntertainmentSticker).precomposed(palette.darkGrayText) },
+                                               chatEntertainmentSticker: { TelegramThemeHooks.shared.image(.iconChatEntertainmentSticker).precomposed(ChromeIconColors.current.secondary(palette)) },
                                                chatEmpty: { TelegramThemeHooks.shared.image(.iconEmptyChat).precomposed(palette.grayForeground) },
                                                stickerPackClose: { TelegramThemeHooks.shared.image(.iconChatSearchCancel).precomposed(palette.accentIcon) },
                                                stickerPackDelete: { TelegramThemeHooks.shared.image(.iconMessageActionPanelDelete).precomposed(palette.accentIcon) },
@@ -1495,8 +1520,8 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                chatListPollBadgeActive: { generateBadgeMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.underSelectedColor, foregroundColor: palette.accentSelect) },
                                                chatListPollBadgeArchived: { generateBadgeMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.badgeMuted, foregroundColor: palette.background) },
                                                chatListPollBadgeArchivedActive: { generateBadgeMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.underSelectedColor, foregroundColor: palette.accentSelect) },
-                                               chatMention: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatMention), backgroundColor: palette.background, border: palette.grayIcon, foregroundColor: palette.text) },
-                                               chatMentionActive: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatMention), backgroundColor: palette.background, border: palette.accentIcon, foregroundColor: palette.text) },
+                                               chatMention: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatMention), backgroundColor: palette.background, border: palette.grayIcon, foregroundColor: ChromeIconColors.current.primary(palette)) },
+                                               chatMentionActive: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatMention), backgroundColor: palette.background, border: palette.accentIcon, foregroundColor: ChromeIconColors.current.active(palette)) },
                                                sliderControl: { TelegramThemeHooks.shared.image(.iconSliderNormal).precomposed() },
                                                sliderControlActive: { TelegramThemeHooks.shared.image(.iconSliderNormal).precomposed() },
                                                chatInstantView: { TelegramThemeHooks.shared.image(.iconChatIV).precomposed(palette.webPreviewActivity) },
@@ -1556,8 +1581,8 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                fastSettingsMute: { TelegramThemeHooks.shared.image(.iconChatActionMute).precomposed(palette.accentIcon) },
                                                fastSettingsUnmute: { TelegramThemeHooks.shared.image(.iconChatActionUnmute).precomposed(palette.accentIcon) },
                                                chatRecordVideo: { TelegramThemeHooks.shared.image(.iconRecordVideoMessage).precomposed(palette.grayIcon) },
-                                               inputChannelMute: { TelegramThemeHooks.shared.image(.iconInputChannelMute).precomposed(palette.darkGrayText) },
-                                               inputChannelUnmute: { TelegramThemeHooks.shared.image(.iconInputChannelUnmute).precomposed(palette.darkGrayText) },
+                                               inputChannelMute: { TelegramThemeHooks.shared.image(.iconInputChannelMute).precomposed(ChromeIconColors.current.secondary(palette)) },
+                                               inputChannelUnmute: { TelegramThemeHooks.shared.image(.iconInputChannelUnmute).precomposed(ChromeIconColors.current.secondary(palette)) },
                                                changePhoneNumberIntro: { TelegramThemeHooks.shared.image(.iconChangeNumberIntro).precomposed() },
                                                peerSavedMessages: { TelegramThemeHooks.shared.image(.iconSavedMessages).precomposed() },
                                                previewSenderCollage: { TelegramThemeHooks.shared.image(.iconPreviewCollage).precomposed(palette.grayIcon) },
@@ -1709,7 +1734,7 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                verifyDialogActive: { generateDialogVerify(background: palette.accentIcon, foreground: palette.underSelectedColor, reversed: true) },
                                               verify_dialog_left: { generateDialogVerifyLeft(background: palette.underSelectedColor, foreground: palette.basicAccent, reversed: true) },
                                               verify_dialog_active_left: { generateDialogVerifyLeft(background: palette.accentIcon, foreground: palette.underSelectedColor, reversed: true) },
-                                               chatInputScheduled: { TelegramThemeHooks.shared.image(.iconChatInputScheduled).precomposed(palette.darkGrayText) },
+                                               chatInputScheduled: { TelegramThemeHooks.shared.image(.iconChatInputScheduled).precomposed(ChromeIconColors.current.secondary(palette)) },
                                                appearanceAddPlatformTheme: {
                                                 let image = TelegramThemeHooks.shared.image(.iconAppearanceAddTheme).precomposed(palette.accentIcon)
                                                 return generateImage(image.backingSize, contextGenerator: { size, ctx in
@@ -1733,7 +1758,7 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                login_qr_cap: { TelegramThemeHooks.shared.image(.iconLoginQRCap).precomposed(palette.accentIcon) },
                                                login_qr_empty_cap: { generateLoginQrEmptyCap() },
                                                chat_failed_scroller: { generateChatFailed(backgroundColor: palette.background, border: palette.redUI, foregroundColor: palette.redUI) },
-                                               chat_failed_scroller_active: { generateChatFailed(backgroundColor: palette.background, border: palette.accentIcon, foregroundColor: palette.text) },
+                                               chat_failed_scroller_active: { generateChatFailed(backgroundColor: palette.background, border: palette.accentIcon, foregroundColor: ChromeIconColors.current.active(palette)) },
                                                poll_quiz_unselected: { generateUnslectedCap(palette.grayText) },
                                                poll_selected: { generatePollIcon(TelegramThemeHooks.shared.image(.iconPollSelected), backgound: palette.webPreviewActivity) },
                                                poll_selection: { generatePollIcon(TelegramThemeHooks.shared.image(.iconPollSelected), backgound: palette.webPreviewActivity) },
@@ -1890,9 +1915,9 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                profile_voice_chat: { generateProfileIcon(TelegramThemeHooks.shared.image(.iconProfileVoiceChat).precomposed(palette.accentIcon), backgroundColor: palette.accent) },
                                                chat_voice_chat: { generateChatAction(TelegramThemeHooks.shared.image(.iconVoiceChatTitle).precomposed(palette.accentIcon), background: palette.background) },
                                                chat_voice_chat_active: { generateChatAction(TelegramThemeHooks.shared.image(.iconVoiceChatTitle).precomposed(palette.accentIcon), background: palette.grayIcon.withAlphaComponent(0.1)) },
-                                               editor_draw: { TelegramThemeHooks.shared.image(.iconEditorPaint).precomposed(palette.text) },
-                                               editor_delete: { TelegramThemeHooks.shared.image(.iconEditorDelete).precomposed(palette.text) },
-                                              editor_crop: { TelegramThemeHooks.shared.image(.iconEditorCrop).precomposed(palette.text) },
+                                               editor_draw: { TelegramThemeHooks.shared.image(.iconEditorPaint).precomposed(ChromeIconColors.current.mediaOverlay(palette)) },
+                                               editor_delete: { TelegramThemeHooks.shared.image(.iconEditorDelete).precomposed(ChromeIconColors.current.mediaOverlay(palette)) },
+                                              editor_crop: { TelegramThemeHooks.shared.image(.iconEditorCrop).precomposed(ChromeIconColors.current.mediaOverlay(palette)) },
                                                fast_copy_link: { TelegramThemeHooks.shared.image(.iconFastCopyLink).precomposed(palette.accent) },
                                                profile_channel_sign: {TelegramThemeHooks.shared.image(.iconProfileChannelSign).precomposed(flipVertical: true)},
                                                profile_channel_type: {TelegramThemeHooks.shared.image(.iconProfileChannelType).precomposed(flipVertical: true)},
@@ -1976,8 +2001,8 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                reactions_badge_archive: { generateBadgeMention(image: TelegramThemeHooks.shared.image(.iconReactionBadge), backgroundColor: palette.badgeMuted, foregroundColor: palette.background) },
                                                reactions_badge_archive_active: { generateBadgeMention(image: TelegramThemeHooks.shared.image(.iconReactionBadge), backgroundColor: palette.underSelectedColor, foregroundColor: palette.accentSelect) },
                                                reactions_show_more: { NSImage.init(named: "Icon_Reactions_ShowMore")!.precomposed(NSColor.white) },
-                                               chat_reactions_badge: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconReactionButton), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, foregroundColor: palette.text) },
-                                               chat_reactions_badge_active: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconReactionButton), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, foregroundColor: .text) },
+                                               chat_reactions_badge: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconReactionButton), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, foregroundColor: ChromeIconColors.current.primary(palette)) },
+                                               chat_reactions_badge_active: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconReactionButton), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, foregroundColor: ChromeIconColors.current.active(palette)) },
                                                 gallery_pip_close: { TelegramThemeHooks.shared.image(.iconPipClose).precomposed(NSColor(0xffffff)) },
                                                 gallery_pip_muted: { TelegramThemeHooks.shared.image(.iconPipMuted).precomposed(NSColor(0xffffff)) },
                                                 gallery_pip_unmuted: { TelegramThemeHooks.shared.image(.iconPipUnmuted).precomposed(NSColor(0xffffff)) },
@@ -2063,7 +2088,7 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                                                 installed_stickers_trending: { TelegramThemeHooks.shared.image(.iconInstalledStickersTrending).precomposed(flipVertical: true) },
                                                 folder_invite_link: { generateFolderLinkIcon(palette: palette, revoked: false) },
                                                 folder_invite_link_revoked: { generateFolderLinkIcon(palette: palette, revoked: true) },
-                              folders_sidebar_edit: { TelegramThemeHooks.shared.image(.iconLeftSidebarEditFolders).precomposed(palette.text.withAlphaComponent(0.75), flipVertical: true) },
+                              folders_sidebar_edit: { TelegramThemeHooks.shared.image(.iconLeftSidebarEditFolders).precomposed(ChromeIconColors.current.muted(palette), flipVertical: true) },
                               folders_sidebar_edit_active: { TelegramThemeHooks.shared.image(.iconLeftSidebarEditFolders).precomposed(palette.grayIcon.withAlphaComponent(0.8), flipVertical: true) },
                               story_unseen: { generateStoryState(palette.accent, bgColor: palette.background, size: NSMakeSize(50, 50), wide: 1.5) },
                               story_seen: { generateStoryState(palette.grayIcon.withAlphaComponent(0.5), bgColor: palette.background, size: NSMakeSize(50, 50), wide: 1.0) },
@@ -2111,7 +2136,7 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                               chat_my_notes: { TelegramThemeHooks.shared.image(.iconMyNotes).precomposed(.white) },
                               premium_required_forward: { TelegramThemeHooks.shared.image(.iconPremiumRequiredForward).precomposed() },
                               create_new_message_general: { TelegramThemeHooks.shared.image(.iconNewMessage).precomposed(palette.accent, flipVertical: true) },
-                              bot_manager_settings: { TelegramThemeHooks.shared.image(.iconBotManagerSettings).precomposed(palette.grayIcon) },
+                              bot_manager_settings: { TelegramThemeHooks.shared.image(.iconBotManagerSettings).precomposed(ChromeIconColors.current.primary(palette)) },
                               preview_text_down: { TelegramThemeHooks.shared.image(.iconMoveCaptionDown).precomposed(palette.grayIcon) },
                               preview_text_up: { TelegramThemeHooks.shared.image(.iconMoveCaptionUp).precomposed(palette.grayIcon) },
                               avatar_star_badge: { generateAvatarStarBadge(color: palette.background) },
@@ -2121,8 +2146,8 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                               chatlist_apps: { TelegramThemeHooks.shared.image(.iconChatListApps).precomposed(palette.accent) },
                               chat_input_channel_gift:  { TelegramThemeHooks.shared.image(.iconChannelGift).precomposed(palette.accent) },
                               chat_input_suggest_message: { TelegramThemeHooks.shared.image(.iconChatInputMessageSuggestion).precomposed(palette.accent) },
-                              chat_input_send_gift: { TelegramThemeHooks.shared.image(.iconChannelGift).precomposed(palette.darkGrayText) },
-                              chat_input_suggest_post: { TelegramThemeHooks.shared.image(.iconInputSuggestPost).precomposed(palette.darkGrayText) },
+                              chat_input_send_gift: { TelegramThemeHooks.shared.image(.iconChannelGift).precomposed(ChromeIconColors.current.secondary(palette)) },
+                              chat_input_suggest_post: { TelegramThemeHooks.shared.image(.iconInputSuggestPost).precomposed(ChromeIconColors.current.secondary(palette)) },
                               todo_selection: { generateTodoSelection(color: palette.webPreviewActivity) },
                               todo_selected: { generateTodoSelected(color: palette.webPreviewActivity) },
                               todo_selection_other_incoming: { generateTodoSelection(color: palette.webPreviewActivityBubble_incoming) },
@@ -2131,8 +2156,8 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                               todo_selected_other_outgoing: { generateTodoSelected(color: palette.webPreviewActivityBubble_outgoing) },
                               send_message_small: { TelegramThemeHooks.shared.image(.iconSendMessageSmall).precomposed(palette.underSelectedColor) },
                               send_message_large: { TelegramThemeHooks.shared.image(.iconSendMessageLarge).precomposed(palette.underSelectedColor) },
-                              chat_poll_votes_badge: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, foregroundColor: palette.text) },
-                              chat_poll_votes_badge_active: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, foregroundColor: palette.text) },
+                              chat_poll_votes_badge: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.grayIcon : .clear, foregroundColor: ChromeIconColors.current.primary(palette)) },
+                              chat_poll_votes_badge_active: { generateChatMention(image: TelegramThemeHooks.shared.image(.iconChatListPollBadge), backgroundColor: palette.background, border: palette.chatBackground == palette.background && palette.isDark ? palette.accentIcon : .clear, foregroundColor: ChromeIconColors.current.active(palette)) },
                               chat_header_close: { TelegramThemeHooks.shared.image(.iconPipClose).precomposed(palette.text) },
                               chat_header_back: { TelegramThemeHooks.shared.image(.iconChatNavigationBack).precomposed(palette.text) },
                               chat_header_search: { TelegramThemeHooks.shared.image(.iconSearchChatMessages).precomposed(palette.text) },
@@ -2141,14 +2166,14 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                               chat_header_actions: { TelegramThemeHooks.shared.image(.iconChatActions).precomposed(palette.text) },
                               chat_header_done: { TelegramThemeHooks.shared.image(.iconChatDoneCheckbox).precomposed(palette.underSelectedColor) },
                               chat_header_secret_lock: { TelegramThemeHooks.shared.image(.iconSecretChatLock).precomposed(palette.text) },
-                              chat_input_ai: { TelegramThemeHooks.shared.image(.iconAiInput).precomposed(palette.text) },
+                              chat_input_ai: { TelegramThemeHooks.shared.image(.iconAiInput).precomposed(ChromeIconColors.current.primary(palette)) },
                               chat_header_dismiss: { TelegramThemeHooks.shared.image(.iconBrowserClose).precomposed(palette.text) },
                               chat_header_pinned_list: { TelegramThemeHooks.shared.image(.iconChatPinnedList).precomposed(palette.text) },
                               chat_header_translate: { TelegramThemeHooks.shared.image(.iconChatTranslate).precomposed(palette.text) },
                               chat_header_translate_actions: { TelegramThemeHooks.shared.image(.iconChatActionsActive).precomposed(palette.text) },
                               chat_header_bot_settings: { TelegramThemeHooks.shared.image(.iconBotManagerSettings).precomposed(palette.text) },
                               chat_header_story_close: { TelegramThemeHooks.shared.image(.iconStoryClose).precomposed(palette.text) },
-                              chat_input_attach: { TelegramThemeHooks.shared.image(.iconChatAttach).precomposed(palette.text) },
+                              chat_input_attach: { TelegramThemeHooks.shared.image(.iconChatAttach).precomposed(ChromeIconColors.current.primary(palette)) },
                               chat_input_star: { TelegramThemeHooks.shared.image(.starSmall).precomposed(palette.underSelectedColor) },
                               chat_search_next: { TelegramThemeHooks.shared.image(.iconSearchArrow).precomposed(palette.text, flipVertical: true) },
                               chat_search_prev: { TelegramThemeHooks.shared.image(.iconSearchArrow).precomposed(palette.text) },
@@ -2162,8 +2187,8 @@ public func generateIcons(from palette: ColorPalette, bubbled: Bool) -> Telegram
                               chat_action_gigagroup_info: { TelegramThemeHooks.shared.image(.iconGigagroupInfo).precomposed(palette.text) },
                               chat_action_monoforum: { TelegramThemeHooks.shared.image(.iconChatInputMessageSuggestion).precomposed(palette.text) },
                               chat_action_gift: { TelegramThemeHooks.shared.image(.iconChannelGift).precomposed(palette.text) },
-                              chat_input_record_voice: { TelegramThemeHooks.shared.image(.iconRecordVoice).precomposed(palette.text) },
-                              chat_input_record_video: { TelegramThemeHooks.shared.image(.iconRecordVideoMessage).precomposed(palette.text) },
+                              chat_input_record_voice: { TelegramThemeHooks.shared.image(.iconRecordVoice).precomposed(ChromeIconColors.current.primary(palette)) },
+                              chat_input_record_video: { TelegramThemeHooks.shared.image(.iconRecordVideoMessage).precomposed(ChromeIconColors.current.primary(palette)) },
                               livePhotoBadge: { TelegramThemeHooks.shared.image(.iconLivePhotoBadge).precomposed(.white) },
                               galleryLivePhotoPlay: { TelegramThemeHooks.shared.image(.iconGalleryLivePhotoPlay).precomposed(.white) },
                               galleryLivePhotoPlaying: { TelegramThemeHooks.shared.image(.iconGalleryLivePhotoPlaying).precomposed(.white) }

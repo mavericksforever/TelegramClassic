@@ -331,7 +331,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
        // NSApplication.shared.applicationIconImage = NSImage(resource: .premiumBlack)
       
         let singleColumnThreshold: CGFloat = 650
-        let chromeMode: Window.ChromeMode = window.frame.width < singleColumnThreshold ? .compact : .standard
+        let chromeMode: Window.ChromeMode = .preferred(singleColumn: window.frame.width < singleColumnThreshold)
         window.applyChrome(chromeMode)
         window.applyCornerRadius(for: chromeMode)
 
@@ -607,8 +607,8 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
         let window = self.window!
         System.updateScaleFactor(window.backingScaleFactor)
                 
-        window.applyChrome(.standard)
-        
+        window.applyChrome(.preferred(singleColumn: false))
+
         window.minSize = NSMakeSize(400, 550)
         
         let networkDisposable = MetaDisposable()

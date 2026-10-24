@@ -92,7 +92,7 @@ open class SectionViewController: GenericViewController<SectionControllerView> {
         self.selectedIndex = selected
         self.appearances = sections.map { _ in .disappeared }
         super.init()
-        bar = .init(height: hasBar ? 64 : 0)
+        bar = .init(height: hasBar ? NavigationBarStyle.defaultHeight : 0)
     }
 
     deinit {

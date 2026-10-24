@@ -47,21 +47,22 @@ public struct ChatFloatingPhoto {
 
 public final class ChatHistoryBottomRowItem: GeneralRowItem {
     public static let minimumInputOverlayHeight: CGFloat = 40
-    public static let messageInputGap: CGFloat = 20
 
-    public static func height(for inputOverlayHeight: CGFloat) -> CGFloat {
-        return max(minimumInputOverlayHeight, max(0, inputOverlayHeight)) + messageInputGap
+    public static func overlayHeight(for inputOverlayHeight: CGFloat) -> CGFloat {
+        return max(minimumInputOverlayHeight, max(0, inputOverlayHeight))
     }
 
     private let inputOverlayHeight: Atomic<CGFloat>
+    private let messageInputGap: CGFloat
 
-    public init(_ initialSize: NSSize, stableId: AnyHashable, inputOverlayHeight: Atomic<CGFloat>) {
+    public init(_ initialSize: NSSize, stableId: AnyHashable, inputOverlayHeight: Atomic<CGFloat>, bubbled: Bool) {
         self.inputOverlayHeight = inputOverlayHeight
+        self.messageInputGap = bubbled ? ChatStyle.current.input.bubbledMessageGap : ChatStyle.current.input.messageGap
         super.init(initialSize, stableId: stableId, backgroundColor: .clear, ignoreAtInitialization: true)
     }
 
     public override var height: CGFloat {
-        return ChatHistoryBottomRowItem.height(for: inputOverlayHeight.with { $0 })
+        return ChatHistoryBottomRowItem.overlayHeight(for: inputOverlayHeight.with { $0 }) + messageInputGap
     }
 
     public override var accessibilityIsSpacer: Bool {
@@ -2817,7 +2818,7 @@ public class ChatRowItem: TableRowItem {
         case .DateEntry:
             return ChatDateStickItem(initialSize, entry, interaction: interaction, theme: theme)
         case .bottom:
-            return ChatHistoryBottomRowItem(initialSize, stableId: entry.stableId, inputOverlayHeight: interaction.inputOverlayHeight)
+            return ChatHistoryBottomRowItem(initialSize, stableId: entry.stableId, inputOverlayHeight: interaction.inputOverlayHeight, bubbled: theme.bubbled)
         case let .empty(_, theme):
             return GeneralRowItem(initialSize, height: theme.bubbled ? 10 : 20, stableId: entry.stableId, backgroundColor: .clear, ignoreAtInitialization: true)
         case .commentsHeader:

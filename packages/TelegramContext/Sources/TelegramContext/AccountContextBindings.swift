@@ -22,7 +22,6 @@ public final class AccountContextBindings {
     public let needFullsize:()->Void
     public let displayUpgradeProgress:(CGFloat)->Void
     public var setGlobalBackgroundMode: (TableBackgroundMode?) -> Void = { _ in }
-    public var doGlobalBackgroundAction: () -> Void = { }
     public init(rootNavigation: @escaping() -> MajorNavigationController = { fatalError() }, mainController: @escaping() -> ViewController = { fatalError() }, globalSearch: @escaping(String, PeerId?, CachedSearchMessages?) -> Void = { _, _, _ in fatalError() }, entertainment: @escaping()->ViewController = { fatalError() }, switchSplitLayout: @escaping(SplitViewState)->Void = { _ in fatalError() }, needFullsize: @escaping() -> Void = { fatalError() }, displayUpgradeProgress: @escaping(CGFloat)->Void = { _ in fatalError() }) {
         self.rootNavigation = rootNavigation
         self.mainController = mainController

@@ -96,8 +96,9 @@ public class ChatInputStateView: View {
 
     public func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         let edge: CGFloat = 12
-        let contentHeight = size.height - ChatInputView.inputBottomInset
-        let containerFrame = NSMakeRect(edge, 0, size.width - edge * 2, contentHeight)
+        let contentY = ChatInputView.inputTopInset
+        let contentHeight = size.height - contentY - ChatInputView.inputBottomInset
+        let containerFrame = NSMakeRect(edge, contentY, size.width - edge * 2, contentHeight)
         transition.updateFrame(view: containerView, frame: containerFrame)
         if let glass = glassEffect {
             transition.updateFrame(view: glass, frame: containerView.bounds)
@@ -482,13 +483,14 @@ public final class ChatInputActionButtonView: ChatInputStateView {
 
     public override func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         let edge: CGFloat = 10
-        let contentHeight = size.height - ChatInputView.inputBottomInset
+        let contentY = ChatInputView.inputTopInset
+        let contentHeight = size.height - contentY - ChatInputView.inputBottomInset
 
         if let view = leftAddition {
-            transition.updateFrame(view: view, frame: NSMakeRect(edge, 0, view.frame.width, view.frame.height))
+            transition.updateFrame(view: view, frame: NSMakeRect(edge, contentY, view.frame.width, view.frame.height))
         }
         if let view = rightAddition {
-            transition.updateFrame(view: view, frame: NSMakeRect(size.width - edge - view.frame.width, 0, view.frame.width, view.frame.height))
+            transition.updateFrame(view: view, frame: NSMakeRect(size.width - edge - view.frame.width, contentY, view.frame.width, view.frame.height))
         }
 
         _ = button.sizeToFit()
@@ -496,13 +498,13 @@ public final class ChatInputActionButtonView: ChatInputStateView {
 
         let containerFrame: NSRect
         if isBot {
-            containerFrame = NSMakeRect(edge, 0, size.width - edge * 2, contentHeight)
+            containerFrame = NSMakeRect(edge, contentY, size.width - edge * 2, contentHeight)
         } else {
             let accentExtra: CGFloat = accentButton != nil ? 80 : 0
             let textWidth = accentButton?.frame.width ?? button.frame.width
             let containerWidth = textWidth + 80 + accentExtra
             let containerX = (size.width - containerWidth) / 2
-            containerFrame = NSMakeRect(containerX, 0, containerWidth, contentHeight)
+            containerFrame = NSMakeRect(containerX, contentY, containerWidth, contentHeight)
         }
 
         transition.updateFrame(view: containerView, frame: containerFrame)

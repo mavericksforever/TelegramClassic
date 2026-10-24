@@ -70,7 +70,7 @@ public class ChatInputAccessory: View {
             })
         }
 
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        self.dismiss.set(image: ChatStyle.current.input.accessoryDismissIcon(theme), for: .Normal)
         _ = dismiss.sizeToFit()
         dismiss.setAccessibilityLabel(strings().voiceOverDiscardPreparedContent)
 

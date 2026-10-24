@@ -109,10 +109,11 @@ final class MenuView: Control, TableViewDelegate {
         self.layer?.shouldRasterize = true
         self.layer?.rasterizationScale = System.backingScale
         
-        self.layer?.cornerRadius = 18
-        self.visualView.layer?.cornerRadius = 18
-        self.backgroundView.layer?.cornerRadius = 18
-        self.tableView.layer?.cornerRadius = 18
+        let cornerRadius = InterfaceStyle.current.menu.cornerRadius
+        self.layer?.cornerRadius = cornerRadius
+        self.visualView.layer?.cornerRadius = cornerRadius
+        self.backgroundView.layer?.cornerRadius = cornerRadius
+        self.tableView.layer?.cornerRadius = cornerRadius
         self.backgroundColor = NSColor.black.withAlphaComponent(0.001)
     }
     
@@ -135,7 +136,21 @@ final class MenuView: Control, TableViewDelegate {
         super.setFrameSize(newSize)
     }
 
-    func animateBubbleAppearance(anchor: NSPoint, fromScale: CGFloat = 0.42) {
+    static let defaultBubbleScale: CGFloat = 0.42
+
+    func animateAppearance(_ appearance: InterfaceStyle.Menu.Appearance, anchor: NSPoint, bubbleScale: CGFloat = MenuView.defaultBubbleScale) {
+        switch appearance {
+        case .bubble:
+            animateBubbleAppearance(anchor: anchor, fromScale: bubbleScale)
+        case let .spring(spring):
+            layer?.animateScaleSpringFrom(anchor: anchor, from: spring.from, to: 1, duration: spring.duration, bounce: spring.bounce)
+            layer?.animateAlpha(from: 0.1, to: 1, duration: 0.2)
+        case .fade:
+            layer?.animateAlpha(from: 0, to: 1, duration: 0.2)
+        }
+    }
+
+    func animateBubbleAppearance(anchor: NSPoint, fromScale: CGFloat = MenuView.defaultBubbleScale) {
         guard let selfLayer = self.layer else {
             return
         }
@@ -872,7 +887,7 @@ final class AppMenuController : NSObject  {
         view.makeKeyAndOrderFront(nil)
         view.view.announceForAccessibility()
 
-        view.view.animateBubbleAppearance(anchor: NSMakePoint(20, max(0, view.frame.height - 20)), fromScale: 0.55)
+        view.view.animateAppearance(InterfaceStyle.current.menu.submenuAppearance, anchor: NSMakePoint(20, max(0, view.frame.height - 20)), bubbleScale: 0.55)
     }
     
     
@@ -915,9 +930,10 @@ final class AppMenuController : NSObject  {
         anchor.y -= 20
         
         
+        let menuStyle = InterfaceStyle.current.menu
         switch appearMode {
         case .click:
-            view.view.animateBubbleAppearance(anchor: anchor)
+            view.view.animateAppearance(menuStyle.clickAppearance, anchor: anchor)
             overlay.frame = window.bounds
             window.contentView?.addSubview(overlay)
         default:
@@ -941,7 +957,7 @@ final class AppMenuController : NSObject  {
             view.frame = NSMakeRect(rect.focus(view.frame.size).minX, 0, view.frame.width, view.frame.height)
             
             window.contentView?.layer?.animateAlpha(from: 0.1, to: 1, duration: 0.2)
-            window.contentView?.layer?.animateScaleSpringFrom(anchor: NSMakePoint(anchor.x, rect.height / 2), from: 0.2, to: 1, duration: 0.28, bounce: true)
+            window.contentView?.layer?.animateScaleSpringFrom(anchor: NSMakePoint(anchor.x, rect.height / 2), from: menuStyle.topPanelSpring.from, to: 1, duration: menuStyle.topPanelSpring.duration, bounce: menuStyle.topPanelSpring.bounce)
             
             window.set(mouseHandler: { [weak self] event in
                 if self?.menu.closeOutside == true {

@@ -7,28 +7,58 @@ import TelegramContext
 import TelegramTheme
 import TelegramUtils
 
-public final class EntertainmentSidebarView: View {
-    private let glassView: LiquidGlassView
-    fileprivate let contentView = View()
+private final class EntertainmentSidebarColumnView: View {
+    private let borderView = View()
 
-    private static var cornerRadius: CGFloat {
-        if #available(macOS 26.0, *) {
-            return 20
-        }
-        return 8
+    required init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        addSubview(borderView)
     }
 
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func updateLocalizationAndTheme(theme: PresentationTheme) {
+        super.updateLocalizationAndTheme(theme: theme)
+        backgroundColor = theme.colors.background
+        borderView.backgroundColor = theme.colors.border
+    }
+
+    override func layout() {
+        super.layout()
+        borderView.frame = NSMakeRect(0, 0, .borderSize, frame.height)
+    }
+}
+
+public final class EntertainmentSidebarView: View {
+    private let glassView: LiquidGlassView?
+    private let columnView: EntertainmentSidebarColumnView?
+    fileprivate let contentView = View()
+
     public required init(frame frameRect: NSRect) {
-        let radius = EntertainmentSidebarView.cornerRadius
-        glassView = LiquidGlassView(frame: frameRect.size.bounds, cornerRadius: radius, hasShadow: true, hasBorder: true, tintAlpha: 0, customTint: theme.colors.background.withAlphaComponent(EntertainmentView.glassTintAlpha), forceBlur: true)
+        let style = EntertainmentStyle.current
+        switch style.sidebarSurface {
+        case let .glass(cornerRadius):
+            glassView = LiquidGlassView(frame: frameRect.size.bounds, cornerRadius: cornerRadius, hasShadow: true, hasBorder: true, tintAlpha: 0, customTint: theme.colors.background.withAlphaComponent(EntertainmentView.glassTintAlpha), forceBlur: true)
+            columnView = nil
+        case .column:
+            glassView = nil
+            columnView = EntertainmentSidebarColumnView(frame: frameRect.size.bounds)
+        }
         super.init(frame: frameRect)
         layer?.masksToBounds = false
         backgroundColor = .clear
 
-        contentView.layer?.cornerRadius = radius
+        contentView.layer?.cornerRadius = style.sidebarCornerRadius
         contentView.layer?.masksToBounds = true
 
-        addSubview(glassView)
+        if let glassView {
+            addSubview(glassView)
+        }
+        if let columnView {
+            addSubview(columnView)
+        }
         addSubview(contentView)
         updateLocalizationAndTheme(theme: theme)
     }
@@ -40,13 +70,14 @@ public final class EntertainmentSidebarView: View {
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = theme as! TelegramPresentationTheme
-        glassView.customTint = theme.colors.background.withAlphaComponent(EntertainmentView.glassTintAlpha)
+        glassView?.customTint = theme.colors.background.withAlphaComponent(EntertainmentView.glassTintAlpha)
     }
 
     public override func layout() {
         super.layout()
-        glassView.frame = bounds
-        glassView.updateLayout(size: bounds.size, transition: .immediate)
+        glassView?.frame = bounds
+        glassView?.updateLayout(size: bounds.size, transition: .immediate)
+        columnView?.frame = bounds
         contentView.frame = bounds
         for subview in contentView.subviews {
             subview.frame = contentView.bounds
@@ -63,6 +94,10 @@ public final class EntertainmentSidebarView: View {
 
 public final class EntertainmentSidebarController: GenericViewController<EntertainmentSidebarView> {
     public static let paneWidth: CGFloat = 358
+
+    public static var sidebarGrowsWindow: Bool {
+        return EntertainmentStyle.current.sidebarGrowsWindow
+    }
 
     private let context: any AccountContextProtocol
     private let entertainment: ViewController
@@ -82,7 +117,7 @@ public final class EntertainmentSidebarController: GenericViewController<Enterta
         self.isChat = isChat
         super.init(frame: NSMakeRect(0, 0, EntertainmentSidebarController.paneWidth, 0))
         self.bar = .init(height: 0)
-        self.insets = NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 8)
+        self.insets = EntertainmentStyle.current.sidebarInsets
         context.bindings.rootNavigation().add(listener: WeakReference(value: self))
 
         let postbox = context.account.postbox

@@ -332,15 +332,20 @@ open class Window: NSWindow {
     public enum ChromeMode {
         case compact
         case standard
+
+        public static func preferred(singleColumn: Bool) -> ChromeMode {
+            return InterfaceStyle.current.window.extendsContentUnderTitlebar && !singleColumn ? .standard : .compact
+        }
     }
 
 
     public func applyChrome(_ mode: ChromeMode) {
+        let preservedFrame = self.frame
         switch mode {
         case .compact:
             self.toolbar = nil
             self.styleMask.remove(.fullSizeContentView)
-            self.titlebarAppearsTransparent = false
+            self.titlebarAppearsTransparent = InterfaceStyle.current.window.transparentCompactTitlebar
             self.titleVisibility = .visible
             self.setTrafficLightsInset(nil)
         case .standard:
@@ -360,31 +365,8 @@ open class Window: NSWindow {
                 self.setTrafficLightsInset(self is AppWindow ? NSPoint(x: 15, y: 8) : NSPoint(x: 10, y: 6))
             }
         }
-    }
-
-
-    public func clampToScreen() {
-        guard let screenFrame = self.screen?.visibleFrame else { return }
-        var frame = self.frame
-        var moved = false
-        if frame.maxY > screenFrame.maxY {
-            frame.origin.y = screenFrame.maxY - frame.height
-            moved = true
-        }
-        if frame.minY < screenFrame.minY {
-            frame.origin.y = screenFrame.minY
-            moved = true
-        }
-        if frame.maxX > screenFrame.maxX {
-            frame.origin.x = screenFrame.maxX - frame.width
-            moved = true
-        }
-        if frame.minX < screenFrame.minX {
-            frame.origin.x = screenFrame.minX
-            moved = true
-        }
-        if moved {
-            self.setFrame(frame, display: true)
+        if !isFullScreen, self.frame != preservedFrame {
+            self.setFrame(preservedFrame, display: true)
         }
     }
 

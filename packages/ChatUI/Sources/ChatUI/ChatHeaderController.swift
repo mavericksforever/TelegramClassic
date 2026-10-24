@@ -30,6 +30,20 @@ protocol ChatHeaderProtocol {
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition)
 }
 
+extension View {
+    func applyChatHeaderStripSurface(_ theme: PresentationTheme) {
+        let header = ChatStyle.current.header
+        switch header.stripSurface {
+        case .shared:
+            backgroundColor = .clear
+        case .perStrip:
+            backgroundColor = theme.colors.background
+            border = [.Bottom]
+            borderColor = header.separatorColor(theme.colors)
+        }
+    }
+}
+
 struct EmojiTag : Equatable {
     let emoji: String
     let tag: SavedMessageTags.Tag
@@ -227,12 +241,13 @@ struct ChatHeaderState : Identifiable, Equatable {
     }
 
     var primaryHeight:CGFloat {
+        let style = ChatStyle.current.header
         var height: CGFloat = 0
         switch main {
         case .none:
             height += 0
         case let .search(_, _, _, emojiTags, _, _):
-            height += 40
+            height += style.messageHeight
             if emojiTags != nil {
                 height += 35
             }
@@ -240,25 +255,25 @@ struct ChatHeaderState : Identifiable, Equatable {
             if let _ = status {
                 height += 30
             }
-            height += 36
+            height += style.buttonsHeight
         case .addContact:
-            height += 36
+            height += style.buttonsHeight
         case .shareInfo:
-            height += 36
+            height += style.buttonsHeight
         case .pinned:
-            height += 40
+            height += style.messageHeight
         case .promo:
-            height += 36
+            height += style.buttonsHeight
         case .pendingRequests:
-            height += 36
+            height += style.buttonsHeight
         case .requestChat:
-            height += 36
+            height += style.buttonsHeight
         case .restartTopic:
-            height += 36
+            height += style.buttonsHeight
         case .removePaidMessages:
-            height += 40
+            height += style.messageHeight
         case .setBotPhoto:
-            height += 36
+            height += style.buttonsHeight
         }
         return height
     }
@@ -266,7 +281,7 @@ struct ChatHeaderState : Identifiable, Equatable {
     var secondaryHeight:CGFloat {
         var height: CGFloat = 0
         if let _ = voiceChat {
-            height += 40
+            height += ChatStyle.current.header.messageHeight
         }
         return height
     }
@@ -280,7 +295,7 @@ struct ChatHeaderState : Identifiable, Equatable {
     var fourthHeight:CGFloat {
         var height: CGFloat = 0
         if let _ = botManager {
-            height += 40
+            height += ChatStyle.current.header.messageHeight
         }
         if let botAd = botAd {
             height += botAd.height
@@ -423,12 +438,12 @@ class ChatHeaderController {
     }
 
     private func layoutSeparators(size: NSSize, transition: ContainedViewLayoutTransition) {
-        guard let current = currentView else { return }
+        guard let current = currentView, case .shared = ChatStyle.current.header.stripSurface else { return }
         let ordered: [View] = [self.monoforumView, self.seconderyView, self.primaryView, self.thirdView, self.fourthView].compactMap { $0 }
         let sortedByY = ordered.sorted { $0.frame.minY < $1.frame.minY }
         let neededSeparators = max(0, sortedByY.count - 1)
 
-        let separatorColor = theme.colors.text.withAlphaComponent(0.05)
+        let separatorColor = ChatStyle.current.header.separatorColor(theme.colors)
 
         while separatorViews.count < neededSeparators {
             let sep = View()
@@ -448,9 +463,10 @@ class ChatHeaderController {
         }
     }
     
-    func updateState(_ state:ChatHeaderState, animated:Bool, for view:View, inset: CGFloat, relativeView: NSView?) -> Void {
+    func updateState(_ state:ChatHeaderState, animated:Bool, for view:View, top: CGFloat, inset: CGFloat, relativeView: NSView?) -> Void {
         if _headerState != state {
             _headerState = state
+            let style = ChatStyle.current.header
 
             if let data = state.monoforumHorizontal {
                 let current: MonoforumHorizontalView
@@ -466,7 +482,7 @@ class ChatHeaderController {
                 self.monoforumView = nil
             }
             
-            let edge: CGFloat = 12
+            let edge = style.inset
 
             let (primary, secondary, third, fourth) = viewIfNecessary(
                 primarySize: NSMakeSize(view.frame.width - inset - edge * 2, state.primaryHeight),
@@ -542,7 +558,7 @@ class ChatHeaderController {
                     }
                     if let currentView = currentView {
                         // Adjust the fromPosition based on your animation requirements
-                        let fromPositionY = cumulativeHeightsBelow[name]! - state.secondaryHeight - currentView.frame.height
+                        let fromPositionY = state.monoforumHeight + cumulativeHeightsBelow[name]! - state.secondaryHeight - currentView.frame.height
                         let fromPosition = NSMakePoint(0, fromPositionY)
                         added.append((view: currentView, fromPosition: fromPosition, toPosition: toPosition, aboveView: aboveView))
                         lastView = currentView
@@ -561,14 +577,16 @@ class ChatHeaderController {
                     transition.updateFrame(view: current, frame: NSMakeRect(current.frame.origin.x, current.frame.origin.y, view.frame.width - inset - (current.frame.origin.x * 2), state.height))
                   
                 } else {
-                    current = View(frame: NSMakeRect(inset + edge, ChatHeaderBubblesView.totalHeight, view.frame.width - inset - edge * 2, state.height))
-                    current.layer?.masksToBounds = false
-                    let glass = LiquidGlassView(frame: current.frame, cornerRadius: 20, hasShadow: true, hasBorder: true, tintAlpha: 0.4)
-                    glassEffect = glass
-                    if let wrapper = sharedGlassWrapper {
-                        wrapper.addGhost(glass)
-                    } else {
-                        current.addSubview(glass, positioned: .below, relativeTo: nil)
+                    current = View(frame: NSMakeRect(inset + edge, top, view.frame.width - inset - edge * 2, state.height))
+                    if style.floats {
+                        current.layer?.masksToBounds = false
+                        let glass = LiquidGlassView(frame: current.frame, cornerRadius: 20, hasShadow: true, hasBorder: true, tintAlpha: 0.4)
+                        glassEffect = glass
+                        if let wrapper = sharedGlassWrapper {
+                            wrapper.addGhost(glass)
+                        } else {
+                            current.addSubview(glass, positioned: .below, relativeTo: nil)
+                        }
                     }
                     if let relativeView {
                         view.addSubview(current, positioned: .below, relativeTo: relativeView)
@@ -584,23 +602,17 @@ class ChatHeaderController {
                     } else {
                         current.addSubview(view)
                     }
-                    view.setFrameOrigin(position)
+                    moveStrip(view, to: position, animated: animated)
                 }
 
                 for view in removed {
                     if let view = view as? ChatHeaderProtocol {
                         view.remove(animated: animated)
                     }
-                    if animated {
-                        view.layer?.animateAlpha(from: 1, to: 0, duration: 0.2, removeOnCompletion: false, completion: { [weak view] _ in
-                            view?.removeFromSuperview()
-                        })
-                    } else {
-                        view.removeFromSuperview()
-                    }
+                    removeStrip(view, animated: animated)
                 }
 
-                for (view, _, toPosition, aboveView) in added {
+                for (view, fromPosition, toPosition, aboveView) in added {
                     if let aboveView = aboveView {
                         current.addSubview(view, positioned: .below, relativeTo: aboveView)
                     } else {
@@ -608,7 +620,7 @@ class ChatHeaderController {
                     }
                     view.setFrameOrigin(toPosition)
                     if animated {
-                        view.layer?.animateAlpha(from: 0, to: 1, duration: 0.2)
+                        animateStripIn(view, from: fromPosition)
                     }
                     if let control = view as? Control, let glass = glassEffect {
                         control.interactiveGlassTransformView = current
@@ -627,9 +639,7 @@ class ChatHeaderController {
                 }
 
                 if let monoforumView {
-                    if monoforumView.superview !== current {
-                        current.addSubview(monoforumView)
-                    }
+                    current.addSubview(monoforumView)
                     monoforumView.setFrameOrigin(NSMakePoint(0, 0))
                     monoforumView.setFrameSize(NSMakeSize(current.frame.width, 40))
                     monoforumView.updateLayout(size: monoforumView.frame.size, transition: animated ? .animated(duration: 0.2, curve: .easeOut) : .immediate)
@@ -641,7 +651,7 @@ class ChatHeaderController {
                     let removingGlass = self.glassEffect
                     self.glassEffect = nil
                     self.separatorViews.removeAll()
-                    performSubviewRemoval(currentView, animated: animated)
+                    removeContainer(currentView, animated: animated)
                     if let removingGlass, removingGlass.superview !== currentView {
                         let wrapper = sharedGlassWrapper
                         performSubviewRemoval(removingGlass, animated: animated, completed: { [weak wrapper, weak removingGlass] _ in
@@ -656,8 +666,57 @@ class ChatHeaderController {
                 }
             }
         }
-        
 
+
+    }
+
+    private func animateStripIn(_ view: View, from position: NSPoint) {
+        switch ChatStyle.current.header.stripTransition {
+        case .fade:
+            view.layer?.animateAlpha(from: 0, to: 1, duration: 0.2)
+        case .slide:
+            view.layer?.animatePosition(from: position, to: view.frame.origin, duration: 0.2)
+        }
+    }
+
+    private func moveStrip(_ view: View, to position: NSPoint, animated: Bool) {
+        switch ChatStyle.current.header.stripTransition {
+        case .fade:
+            view.setFrameOrigin(position)
+        case .slide:
+            view.change(pos: position, animated: animated)
+        }
+    }
+
+    private func removeStrip(_ view: View, animated: Bool) {
+        switch ChatStyle.current.header.stripTransition {
+        case .fade:
+            if animated {
+                view.layer?.animateAlpha(from: 1, to: 0, duration: 0.2, removeOnCompletion: false, completion: { [weak view] _ in
+                    view?.removeFromSuperview()
+                })
+            } else {
+                view.removeFromSuperview()
+            }
+        case .slide:
+            slideUpAndRemove(view, animated: animated)
+        }
+    }
+
+    private func removeContainer(_ view: View, animated: Bool) {
+        switch ChatStyle.current.header.stripTransition {
+        case .fade:
+            performSubviewRemoval(view, animated: animated)
+        case .slide:
+            if animated {
+                view.layer?.animateAlpha(from: 1, to: 0, duration: 0.2, removeOnCompletion: false)
+            }
+            slideUpAndRemove(view, animated: animated)
+        }
+    }
+
+    private func slideUpAndRemove(_ view: View, animated: Bool) {
+        performSubviewPosRemoval(view, pos: NSMakePoint(view.frame.minX, view.frame.minY - view.frame.height), animated: animated, timingFunction: .easeOut)
     }
 
     func applySearchResponder() {
@@ -835,7 +894,7 @@ private final class ChatSponsoredView : Control, ChatHeaderProtocol {
         super.init(frame: frame)
         
         dismiss.disableActions()
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         _ = self.dismiss.sizeToFit()
         
         self.set(handler: { [weak self] _ in
@@ -912,8 +971,8 @@ private final class ChatSponsoredView : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        self.backgroundColor = .clear
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        applyChatHeaderStripSurface(theme)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         container.backgroundColor = .clear
         if let kind = kind {
             node?.update(title: kind.title, text: kind.text)
@@ -933,7 +992,7 @@ private final class ChatSponsoredView : Control, ChatHeaderProtocol {
 
         transition.updateFrame(view: container, frame: container.centerFrameY(x: 20))
 
-        let dismissX = size.width - 10 - dismiss.frame.width
+        let dismissX = size.width - ChatStyle.current.header.metrics.trailing - dismiss.frame.width
         transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: dismissX))
 
         node?.setNeedDisplay()
@@ -1055,7 +1114,7 @@ class ChatPinnedView : Control, ChatHeaderProtocol {
         
         particleList.update(count: pinnedMessage.totalCount, selectedIndex: pinnedMessage.index, animated: animated)
         
-        self.dismiss.set(image: pinnedMessage.totalCount <= 1 ? theme.icons.chat_header_dismiss : theme.icons.chat_header_pinned_list, for: .Normal)
+        self.dismiss.set(image: pinnedMessage.totalCount <= 1 ? ChatStyle.current.header.icons.dismiss(theme) : ChatStyle.current.header.icons.pinnedList(theme), for: .Normal)
         self.dismiss.setAccessibilityLabel(pinnedMessage.totalCount <= 1 ? strings().voiceOverCommonClose : strings().chatTitlePinnedMessagesOther(Int(pinnedMessage.totalCount)))
         
         if pinnedMessage.messageId != self.pinnedMessage?.messageId || translate != self.translate {
@@ -1146,7 +1205,7 @@ class ChatPinnedView : Control, ChatHeaderProtocol {
                 current.layer?.cornerRadius = current.frame.height / 2
 
                 if isNew {
-                    let buttonX = self.frame.width - 10 - current.frame.width
+                    let buttonX = self.frame.width - ChatStyle.current.header.metrics.trailing - current.frame.width
                     current.frame = current.centerFrameY(x: buttonX)
                 }
 
@@ -1199,11 +1258,11 @@ class ChatPinnedView : Control, ChatHeaderProtocol {
         current.set(font: .medium(.text), for: .Normal)
         current.set(color: theme.colors.underSelectedColor, for: .Normal)
         current.set(background: theme.colors.accent, for: .Normal)
-        current.sizeToFit(NSMakeSize(6, 8), .zero, thatFit: false)
+        current.sizeToFit(ChatStyle.current.header.metrics.inlineButtonPadding, .zero, thatFit: false)
         current.layer?.cornerRadius = current.frame.height / 2
 
         if isNew {
-            let buttonX = self.frame.width - 10 - current.frame.width
+            let buttonX = self.frame.width - ChatStyle.current.header.metrics.trailing - current.frame.width
             current.frame = current.centerFrameY(x: buttonX)
         }
     }
@@ -1235,9 +1294,9 @@ class ChatPinnedView : Control, ChatHeaderProtocol {
             node?.update()
         }
 
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         if let pinnedMessage = pinnedMessage {
-            self.dismiss.set(image: pinnedMessage.totalCount <= 1 ? theme.icons.chat_header_dismiss : theme.icons.chat_header_pinned_list, for: .Normal)
+            self.dismiss.set(image: pinnedMessage.totalCount <= 1 ? ChatStyle.current.header.icons.dismiss(theme) : ChatStyle.current.header.icons.pinnedList(theme), for: .Normal)
         }
         self.dismiss.sizeToFit()
         container.backgroundColor = .clear
@@ -1283,11 +1342,11 @@ class ChatPinnedView : Control, ChatHeaderProtocol {
 
         transition.updateFrame(view: container, frame: container.centerFrameY(x: 24))
 
-        let dismissX = size.width - 10 - dismiss.frame.width
+        let dismissX = size.width - ChatStyle.current.header.metrics.trailing - dismiss.frame.width
         ContainedViewLayoutTransition.immediate.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: dismissX))
 
         if let inlineButton = inlineButton {
-            let buttonX = size.width - 10 - inlineButton.frame.width
+            let buttonX = size.width - ChatStyle.current.header.metrics.trailing - inlineButton.frame.width
             transition.updateFrame(view: inlineButton, frame: inlineButton.centerFrameY(x: buttonX))
         }
 
@@ -1342,7 +1401,7 @@ class ChatReportView : Control, ChatHeaderProtocol {
         unarchiveButton.autoSizeToFit = false
         report.set(text: strings().chatHeaderReportSpam, for: .Normal)
         
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         _ = self.dismiss.sizeToFit()
         
         report.set(handler: { [weak chatInteraction] _ in
@@ -1370,15 +1429,15 @@ class ChatReportView : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         report.set(text: strings().chatHeaderReportSpam, for: .Normal)
         report.style = ControlStyle(font: .normal(.text), foregroundColor: theme.colors.redUI, backgroundColor: .clear, highlightColor: theme.colors.redUI)
         
         unarchiveButton.set(text: strings().peerInfoUnarchive, for: .Normal)
         
-        unarchiveButton.style = ControlStyle(font: .normal(.text), foregroundColor: theme.colors.text, backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
+        unarchiveButton.style = ControlStyle(font: .normal(.text), foregroundColor: ChatStyle.current.header.actionColor(theme.colors), backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
         
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         buttonsContainer.backgroundColor = .clear
         needsLayout = true
     }
@@ -1465,7 +1524,7 @@ class ChatReportView : Control, ChatHeaderProtocol {
     }
 
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        let dismissX = size.width - dismiss.frame.width - 10
+        let dismissX = size.width - dismiss.frame.width - ChatStyle.current.header.metrics.trailing
         let dismissY = floorToScreenPixels(backingScaleFactor, (size.height - dismiss.frame.height) / 2)
         let dismissFrame = NSRect(x: dismissX, y: dismissY, width: dismiss.frame.width, height: dismiss.frame.height)
         ContainedViewLayoutTransition.immediate.updateFrame(view: dismiss, frame: dismissFrame)
@@ -1512,7 +1571,7 @@ class ShareInfoView : Control, ChatHeaderProtocol {
         super.init(frame: frame)
         dismiss.disableActions()
         
-        dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         _ = dismiss.sizeToFit()
         
         share.set(handler: { [weak self] _ in
@@ -1550,18 +1609,18 @@ class ShareInfoView : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
-        share.style = ControlStyle(font: .normal(.text), foregroundColor: theme.colors.text, backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
+        dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
+        share.style = ControlStyle(font: .normal(.text), foregroundColor: ChatStyle.current.header.actionColor(theme.colors), backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
         
         share.set(text: strings().peerInfoShareMyInfo, for: .Normal)
 
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         needsLayout = true
     }
     
     override func layout() {
         super.layout()
-        dismiss.centerY(x: frame.width - dismiss.frame.width - 10)
+        dismiss.centerY(x: frame.width - dismiss.frame.width - ChatStyle.current.header.metrics.trailing)
         share.center()
     }
     
@@ -1591,7 +1650,7 @@ class AddContactView : Control, ChatHeaderProtocol {
         self.style = ControlStyle(backgroundColor: theme.colors.background)
         dismiss.disableActions()
         
-        dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         _ = dismiss.sizeToFit()
 
         add.set(handler: { [weak self] _ in
@@ -1625,8 +1684,8 @@ class AddContactView : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
-        add.style = ControlStyle(font: .normal(.text), foregroundColor: theme.colors.text, backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
+        dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
+        add.style = ControlStyle(font: .normal(.text), foregroundColor: ChatStyle.current.header.actionColor(theme.colors), backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
         blockButton.style = ControlStyle(font: .normal(.text), foregroundColor: theme.colors.redUI, backgroundColor: .clear, highlightColor: theme.colors.redUI)
         
         if blockButton.superview == nil, let peer = chatInteraction.peer {
@@ -1637,9 +1696,9 @@ class AddContactView : Control, ChatHeaderProtocol {
         blockButton.set(text: strings().peerInfoBlockUser, for: .Normal)
         unarchiveButton.set(text: strings().peerInfoUnarchive, for: .Normal)
         
-        unarchiveButton.style = ControlStyle(font: .normal(.text), foregroundColor: theme.colors.text, backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
-        
-        self.backgroundColor = .clear
+        unarchiveButton.style = ControlStyle(font: .normal(.text), foregroundColor: ChatStyle.current.header.actionColor(theme.colors), backgroundColor: .clear, highlightColor: theme.colors.accentSelect)
+
+        applyChatHeaderStripSurface(theme)
         needsLayout = true
     }
     
@@ -1676,7 +1735,7 @@ class AddContactView : Control, ChatHeaderProtocol {
     }
     
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        let dismissX = size.width - dismiss.frame.width - 10
+        let dismissX = size.width - dismiss.frame.width - ChatStyle.current.header.metrics.trailing
         transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: dismissX))
 
         var buttons: [Control] = []
@@ -2100,7 +2159,7 @@ final class ChatGroupCallView : Control, ChatHeaderProtocol {
     
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         joinButton.set(font: .medium(.text), for: .Normal)
         joinButton.set(text: strings().chatGroupCallJoin, for: .Normal)
         joinButton.sizeToFit(NSMakeSize(14, 8), .zero, thatFit: false)
@@ -2120,11 +2179,11 @@ final class ChatGroupCallView : Control, ChatHeaderProtocol {
         avatarsContainer.isHidden = size.width < 300
 
         if let scheduleButton = scheduleButton {
-            let scheduleX = size.width - scheduleButton.frame.width - 10
+            let scheduleX = size.width - scheduleButton.frame.width - ChatStyle.current.header.metrics.buttonTrailing
             transition.updateFrame(view: scheduleButton, frame: scheduleButton.centerFrameY(x: scheduleX))
         }
 
-        let joinX = size.width - joinButton.frame.width - 10
+        let joinX = size.width - joinButton.frame.width - ChatStyle.current.header.metrics.buttonTrailing
         transition.updateFrame(view: joinButton, frame: joinButton.centerFrameY(x: joinX))
 
         let visibleSubviewsCount = max(avatarsContainer.subviews.filter { $0.layer?.opacity == 1.0 }.count, 1)
@@ -2175,7 +2234,7 @@ private final class ChatRequestChat : Control, ChatHeaderProtocol {
         super.init(frame: frame)
 
         dismiss.disableActions()
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         _ = self.dismiss.sizeToFit()
         
         self.set(handler: { [weak self] control in
@@ -2240,8 +2299,8 @@ private final class ChatRequestChat : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        self.backgroundColor = .clear
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        applyChatHeaderStripSurface(theme)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
     }
     
     override func layout() {
@@ -2250,7 +2309,7 @@ private final class ChatRequestChat : Control, ChatHeaderProtocol {
     }
     
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: size.width - 10 - dismiss.frame.width))
+        transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: size.width - ChatStyle.current.header.metrics.trailing - dismiss.frame.width))
 
         let textWidth = size.width - 60
         textView.resize(textWidth)
@@ -2284,7 +2343,7 @@ final class ChatPendingRequests : Control, ChatHeaderProtocol {
         avatarsContainer.isEventLess = true
 
         dismiss.disableActions()
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
         _ = self.dismiss.sizeToFit()
         
         self.set(handler: { _ in
@@ -2405,8 +2464,8 @@ final class ChatPendingRequests : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        self.backgroundColor = .clear
-        self.dismiss.set(image: theme.icons.chat_header_dismiss, for: .Normal)
+        applyChatHeaderStripSurface(theme)
+        self.dismiss.set(image: ChatStyle.current.header.icons.dismiss(theme), for: .Normal)
     }
     
     override func layout() {
@@ -2415,13 +2474,13 @@ final class ChatPendingRequests : Control, ChatHeaderProtocol {
     }
 
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        let dismissX = size.width - 10 - dismiss.frame.width
+        let dismissX = size.width - ChatStyle.current.header.metrics.trailing - dismiss.frame.width
         transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: dismissX))
 
         textView.resize(size.width - 60 - avatarsContainer.frame.width)
         transition.updateFrame(view: textView, frame: textView.centerFrame())
 
-        transition.updateFrame(view: avatarsContainer, frame: avatarsContainer.centerFrameY(x: 10))
+        transition.updateFrame(view: avatarsContainer, frame: avatarsContainer.centerFrameY(x: ChatStyle.current.header.metrics.pendingAvatarsLeading))
 
         let minX = 30 + CGFloat(avatars.count) * 15
         let adjustedTextX = max(textView.frame.minX, minX)
@@ -2503,7 +2562,7 @@ private final class ChatRestartTopic : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         _ = (theme as! TelegramPresentationTheme)
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
     }
     
     override func layout() {
@@ -2562,7 +2621,7 @@ private final class ChatSetBotPhotoView : Control, ChatHeaderProtocol {
         button.set(color: theme.colors.accent.highlighted, for: .Highlight)
         button.set(image: theme.icons.chatAttachCamera, for: .Normal)
         button.set(text: strings().chatHeaderControllerSetProfilePhoto, for: .Normal)
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         needsLayout = true
     }
 
@@ -2778,11 +2837,11 @@ private final class ChatTranslateHeader : Control, ChatHeaderProtocol {
     private func applyAppearance() {
         textView.set(font: .normal(.text), for: .Normal)
         textView.set(color: theme.colors.text, for: .Normal)
-        textView.set(image: theme.icons.chat_header_translate, for: .Normal)
+        textView.set(image: ChatStyle.current.header.icons.translate(theme), for: .Normal)
 
-        action.set(image: theme.icons.chat_header_translate_actions, for: .Normal)
+        action.set(image: ChatStyle.current.header.icons.translateActions(theme), for: .Normal)
         action.setAccessibilityLabel(strings().voiceOverCommonOptions)
-        action.sizeToFit(NSZeroSize)
+        action.sizeToFit(NSZeroSize, ChatStyle.current.header.metrics.translateActionSize, thatFit: true)
         action.autohighlight = false
         action.scaleOnClick = true
 
@@ -2806,7 +2865,7 @@ private final class ChatTranslateHeader : Control, ChatHeaderProtocol {
 
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
         applyAppearance()
         textView.center()
         needsLayout = true
@@ -2820,7 +2879,7 @@ private final class ChatTranslateHeader : Control, ChatHeaderProtocol {
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         transition.updateFrame(view: container, frame: size.bounds)
         transition.updateFrame(view: textView, frame: textView.centerFrame())
-        transition.updateFrame(view: action, frame: action.centerFrameY(x: size.width - action.frame.width - 10))
+        transition.updateFrame(view: action, frame: action.centerFrameY(x: size.width - action.frame.width - ChatStyle.current.header.metrics.translateActionTrailing))
     }
 
 
@@ -2956,8 +3015,8 @@ private final class ChatBotManager : Control, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        self.backgroundColor = .clear
-        self.setup.set(image: theme.icons.chat_header_bot_settings, for: .Normal)
+        applyChatHeaderStripSurface(theme)
+        self.setup.set(image: ChatStyle.current.header.icons.botSettings(theme), for: .Normal)
         self.setup.sizeToFit()
         
         self.stop.set(font: .medium(.text), for: .Normal)
@@ -2975,13 +3034,13 @@ private final class ChatBotManager : Control, ChatHeaderProtocol {
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         transition.updateFrame(view: avatar, frame: avatar.centerFrameY(x: 25))
         
-        let setupX = size.width - 10 - setup.frame.width
+        let setupX = size.width - ChatStyle.current.header.metrics.buttonTrailing - setup.frame.width
         transition.updateFrame(view: setup, frame: setup.centerFrameY(x: setupX))
 
         let stopX = setupX - 10 - stop.frame.width
         transition.updateFrame(view: stop, frame: stop.centerFrameY(x: stopX))
 
-        let textWidth = size.width - avatar.frame.maxX - 10 - setup.frame.width - 10 - stop.frame.width - 10
+        let textWidth = size.width - avatar.frame.maxX - ChatStyle.current.header.metrics.trailing - setup.frame.width - 10 - stop.frame.width - 10
         textView.resize(textWidth)
         infoView.resize(textWidth)
         
@@ -3138,7 +3197,7 @@ private final class ChatAdHeaderView : Control, ChatHeaderProtocol {
                 current.scaleOnClick = true
             }
             
-            current.set(image: theme.icons.chat_header_story_close, for: .Normal)
+            current.set(image: ChatStyle.current.header.icons.storyClose(theme), for: .Normal)
             current.setSingle(handler: { [weak self] _ in
                 if let interactions = self?.chatInteraction {
                     let context = interactions.interactionContext
@@ -3152,7 +3211,7 @@ private final class ChatAdHeaderView : Control, ChatHeaderProtocol {
                 }
             }, for: .Click)
             
-            current.sizeToFit(.zero, NSMakeSize(36, 36), thatFit: true)
+            current.sizeToFit(.zero, ChatStyle.current.header.metrics.adDismissSize, thatFit: true)
         } else if let dismiss {
             performSubviewRemoval(dismiss, animated: animated)
             self.dismiss = nil
@@ -3168,7 +3227,7 @@ private final class ChatAdHeaderView : Control, ChatHeaderProtocol {
     
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        self.backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
     }
     
     override func layout() {
@@ -3195,7 +3254,7 @@ private final class ChatAdHeaderView : Control, ChatHeaderProtocol {
         }
 
         if let dismiss = dismiss {
-            let dismissX = size.width - 30 - 10
+            let dismissX = size.width - 30 - ChatStyle.current.header.metrics.trailing
             transition.updateFrame(view: dismiss, frame: dismiss.centerFrameY(x: dismissX))
         }
     }
@@ -3331,8 +3390,9 @@ private final class ChatRemovePaidMessage : Control, ChatHeaderProtocol {
     
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
+        applyChatHeaderStripSurface(theme)
     }
-    
+
     override func layout() {
         super.layout()
         updateLayout(size: frame.size, transition: .immediate)

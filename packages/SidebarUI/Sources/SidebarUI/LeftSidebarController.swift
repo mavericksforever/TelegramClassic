@@ -87,27 +87,53 @@ private final class LeftSidebarArguments {
 }
 
 
-public final class LeftSidebarView: LiquidGlassView {
+private final class LeftSidebarColumnView: View {
+    private let visualEffect = NSVisualEffectView()
+    private let borderView = View()
+
+    required init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.material = .ultraDark
+        visualEffect.state = .active
+        addSubview(visualEffect)
+        addSubview(borderView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func updateLocalizationAndTheme(theme: PresentationTheme) {
+        super.updateLocalizationAndTheme(theme: theme)
+        backgroundColor = theme.colors.listBackground
+        borderView.backgroundColor = theme.colors.border
+        borderView.isHidden = !theme.colors.isDark
+        visualEffect.isHidden = theme.colors.isDark
+    }
+
+    override func layout() {
+        super.layout()
+        visualEffect.frame = bounds
+        borderView.frame = NSMakeRect(frame.width - .borderSize, 0, .borderSize, frame.height)
+    }
+}
+
+public final class LeftSidebarView: View {
     fileprivate let tableView = TableView()
     fileprivate var environment: SidebarUIEnvironment?
     fileprivate let edit = ImageButton()
-
-    /// 20pt on macOS 26+ to match the liquid-glass look (on macOS 27 the
-    /// window radius is raised to 28pt through private API, keeping this
-    /// inset sidebar concentric). Older systems keep the subtle 8pt.
-    private static var glassCornerRadius: CGFloat {
-        if #available(macOS 26.0, *) {
-            return 20
-        }
-        return 8
-    }
-    public static let inset = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 0)
+    private let surface: View
 
     public required init(frame frameRect: NSRect) {
-        super.init(frame: frameRect, cornerRadius: LeftSidebarView.glassCornerRadius, hasShadow: false, hasBorder: true, tintAlpha: 0.65)
+        surface = LeftSidebarView.makeSurface(frame: frameRect.size.bounds)
+        super.init(frame: frameRect)
 
+        layer?.masksToBounds = false
         backgroundColor = .clear
 
+        surface.isEventLess = true
+        addSubview(surface)
         addSubview(tableView)
         addSubview(edit)
         tableView.getBackgroundColor = {
@@ -115,16 +141,33 @@ public final class LeftSidebarView: LiquidGlassView {
         }
 
         edit.autohighlight = false
-        edit.scaleOnClick = true
+        switch LeftSidebarStyle.current.editPressFeedback {
+        case .scale:
+            edit.scaleOnClick = true
+        case .highlightIcon:
+            edit.scaleOnClick = false
+        }
         edit.setAccessibilityLabel(strings().chatListFilterEditFilters)
 
         updateLocalizationAndTheme(theme: theme)
+    }
+
+    private static func makeSurface(frame: NSRect) -> View {
+        switch LeftSidebarStyle.current.surface {
+        case let .glass(cornerRadius):
+            return LiquidGlassView(frame: frame, cornerRadius: cornerRadius, hasShadow: false, hasBorder: true, tintAlpha: 0.65)
+        case .column:
+            return LeftSidebarColumnView(frame: frame)
+        }
     }
 
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = theme as! TelegramPresentationTheme
         edit.set(image: theme.icons.folders_sidebar_edit, for: .Normal)
+        if case .highlightIcon = LeftSidebarStyle.current.editPressFeedback {
+            edit.set(image: theme.icons.folders_sidebar_edit_active, for: .Highlight)
+        }
         edit.borderColor = theme.colors.grayIcon.withAlphaComponent(0.1)
         needsLayout = true
     }
@@ -147,6 +190,7 @@ public final class LeftSidebarView: LiquidGlassView {
 
     public override func layout() {
         super.layout()
+        surface.frame = bounds
         tableView.frame = NSMakeRect(0, 0, frame.width, frame.height - 50)
         edit.frame = NSMakeRect(0, frame.height - 50, frame.width, 50)
         edit.border = tableView.frame.height < tableView.documentSize.height ? [.Top] : []
@@ -230,7 +274,11 @@ public final class LeftSidebarController: SidebarViewController<LeftSidebarView>
         self.badges = badges
         super.init(context, environment: environment)
         self.bar = .init(height: 0)
-        self.insets = LeftSidebarView.inset
+        self.insets = LeftSidebarStyle.current.insets
+    }
+
+    public static var columnWidth: CGFloat {
+        return LeftSidebarStyle.current.columnWidth
     }
 
     deinit {

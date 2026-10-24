@@ -220,18 +220,20 @@ enum ApplicationContextLaunchAction {
 }
 
 
-let leftSidebarWidth: CGFloat = 90
+let leftSidebarWidth: CGFloat = LeftSidebarController.columnWidth
 
 private final class ApplicationContainerView: View {
     fileprivate let splitView: SplitView
-    fileprivate let backgroundView: BackgroundView
+    fileprivate let backgroundView: BackgroundView?
 
     required init(frame frameRect: NSRect) {
         splitView = SplitView(frame: NSMakeRect(0, 0, frameRect.width, frameRect.height))
-        backgroundView = BackgroundView(frame: NSMakeRect(0, 0, frameRect.width, frameRect.height))
-        backgroundView.useSharedAnimationPhase = false
+        backgroundView = InterfaceStyle.current.split.floatingPanes ? BackgroundView(frame: NSMakeRect(0, 0, frameRect.width, frameRect.height)) : nil
+        backgroundView?.useSharedAnimationPhase = false
         super.init(frame: frameRect)
-        addSubview(backgroundView)
+        if let backgroundView {
+            addSubview(backgroundView)
+        }
         addSubview(splitView)
         autoresizingMask = [.width, .height]
 
@@ -239,9 +241,8 @@ private final class ApplicationContainerView: View {
         splitView.backgroundColor = .clear
     }
 
-    var backgroundMode: TableBackgroundMode {
-        get { return backgroundView.backgroundMode }
-        set { backgroundView.backgroundMode = newValue }
+    func setBackgroundMode(_ mode: TableBackgroundMode) {
+        backgroundView?.backgroundMode = mode
     }
 
     required init?(coder decoder: NSCoder) {
@@ -272,7 +273,7 @@ private final class ApplicationContainerView: View {
     override func layout() {
         super.layout()
         matchSuperviewBounds()
-        backgroundView.frame = bounds
+        backgroundView?.frame = bounds
         splitView.frame = bounds
     }
 }
@@ -293,6 +294,13 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     
     private var entertainment: EntertainmentViewController?
     private var entertainmentSidebar: EntertainmentSidebarController?
+    private var entertainmentSidebarShown = false {
+        didSet {
+            entertainmentSidebarShownValue.set(entertainmentSidebarShown)
+        }
+    }
+    private let entertainmentSidebarShownValue = ValuePromise<Bool>(false, ignoreRepeated: true)
+    private let entertainmentSidebarShownDisposable = MetaDisposable()
 
     private var leftSidebarController: LeftSidebarController?
     
@@ -350,9 +358,9 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
 
     private func applyEffectiveBackgroundMode() {
         if hasSelectedChatPeer, let mode = currentChatBackgroundMode {
-            view.backgroundMode = mode
+            view.setBackgroundMode(mode)
         } else {
-            view.backgroundMode = theme.controllerBackgroundMode
+            view.setBackgroundMode(theme.controllerBackgroundMode)
         }
     }
     
@@ -479,9 +487,6 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
 
         context.bindings.setGlobalBackgroundMode = { [weak self] mode in
             self?.setGlobalBackgroundMode(mode)
-        }
-        context.bindings.doGlobalBackgroundAction = { [weak self] in
-            self?.view.backgroundView.doAction()
         }
 
         // Track the currently selected chat peer. The window-level background
@@ -1023,7 +1028,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     
     func updateEntertainmentSidebar(animated: Bool = false) {
         if FastSettings.sidebarEnabled && FastSettings.sidebarShown && hasSelectedChatPeer {
-            if animated {
+            if animated && EntertainmentSidebarController.sidebarGrowsWindow {
                 self.view.layoutSubtreeIfNeeded()
                 let additionalWidth = self.view.splitView.additionalWidthForTrailing(width: EntertainmentSidebarController.paneWidth, minimumLeadingWidth: 380)
                 if additionalWidth > 0, !self.window.isFullScreen, let visibleFrame = self.window.screen?.visibleFrame {
@@ -1042,6 +1047,9 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
                 controller.availabilityUpdated = { [weak self] in
                     self?.updateEntertainmentSidebar()
                 }
+                entertainmentSidebarShownDisposable.set(controller.viewOnStage.start(next: { [weak self] shown in
+                    self?.entertainmentSidebarShown = shown
+                }))
                 self.entertainmentSidebar = controller
             }
             if controller.canShow {
@@ -1060,14 +1068,18 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         }
         self.view.layoutSubtreeIfNeeded()
         let additionalWidth = self.view.splitView.additionalWidthForTrailing(width: EntertainmentSidebarController.paneWidth, minimumLeadingWidth: 380)
-        return additionalWidth == 0 || (!self.window.isFullScreen && self.window.frame.width + additionalWidth <= (self.window.screen?.visibleFrame.width ?? 0))
+        return additionalWidth == 0 || (EntertainmentSidebarController.sidebarGrowsWindow && !self.window.isFullScreen && self.window.frame.width + additionalWidth <= (self.window.screen?.visibleFrame.width ?? 0))
     }
 
     func isEntertainmentSidebarVisible(in window: NSWindow?) -> Bool {
-        guard window === self.window, let controller = self.entertainmentSidebar, controller.isLoaded() else {
-            return false
+        return window === self.window && entertainmentSidebarShown
+    }
+
+    func entertainmentSidebarVisibility(in window: NSWindow?) -> Signal<Bool, NoError>? {
+        guard window === self.window else {
+            return nil
         }
-        return controller.view.window === window && !controller.view.visibleRect.isEmpty
+        return entertainmentSidebarShownValue.get()
     }
 
     private func updateMinMaxWindowSize(animated: Bool) {
@@ -1162,11 +1174,13 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         FastSettings.isMinimisize = false
         self.view.splitView.mustMinimisize = false
 
+        let split = InterfaceStyle.current.split
+
         switch state {
         case .single:
             let hasLeftSidebar = !(folders?.isEmpty ?? true) && (folders?.sidebar ?? false)
             leftController.insets = hasLeftSidebar
-                ? NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+                ? NSEdgeInsets(top: split.paneInset, left: split.paneInset, bottom: split.paneInset, right: split.paneInset)
                 : NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
 
             if rightController.stackCount == 1, previousState != .none {
@@ -1180,7 +1194,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
             }
         case .dual:
             rightController.empty = emptyController
-            leftController.insets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 0)
+            leftController.insets = NSEdgeInsets(top: split.paneInset, left: split.paneInset, bottom: split.paneInset, right: 0)
             let fixedCount = self.view.splitView.fixedControllerCount
             self.view.splitView.insertController(controller: leftController, proportion: SplitProportion(min: w, max: w), at: fixedCount)
             self.view.splitView.insertController(controller: rightController, proportion: rightProp, at: fixedCount + 1)
@@ -1190,9 +1204,9 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
                 self.view.splitView.mustMinimisize = true
             }
             rightController.empty = emptyController
-            leftController.insets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 0)
+            leftController.insets = NSEdgeInsets(top: split.paneInset, left: split.paneInset, bottom: split.paneInset, right: 0)
             let fixedCount = self.view.splitView.fixedControllerCount
-            self.view.splitView.insertController(controller: leftController, proportion: SplitProportion(min: 90, max: 90), at: fixedCount)
+            self.view.splitView.insertController(controller: leftController, proportion: SplitProportion(min: split.minimizedPaneWidth, max: split.minimizedPaneWidth), at: fixedCount)
             self.view.splitView.insertController(controller: rightController, proportion: rightProp, at: fixedCount + 1)
         default:
             break
@@ -1376,7 +1390,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
     }
     
     func splitViewDrawBorder() -> Bool {
-        return false
+        return InterfaceStyle.current.split.drawsDivider
     }
     
     deinit {
@@ -1396,6 +1410,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         foldersReadyDisposable.dispose()
         globalPeerDisposable.dispose()
         tonConnectPresentationDisposable.dispose()
+        entertainmentSidebarShownDisposable.dispose()
         tonConnectDismiss?()
         context.cleanup()
         NotificationCenter.default.removeObserver(self)
@@ -1419,7 +1434,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
             return
         }
         let hasLeftSidebar = !(folders?.isEmpty ?? true) && (folders?.sidebar ?? false)
-        let mode: Window.ChromeMode = (state == .single && !hasLeftSidebar) ? .compact : .standard
+        let mode: Window.ChromeMode = .preferred(singleColumn: state == .single && !hasLeftSidebar)
         if appliedChromeMode == mode {
             return
         }
@@ -1427,7 +1442,6 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         leftController.genericView.compactCorners = (mode == .compact)
         window.applyChrome(mode)
         window.applyCornerRadius(for: mode)
-        window.clampToScreen()
     }
 
 }

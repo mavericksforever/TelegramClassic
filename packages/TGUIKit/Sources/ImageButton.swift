@@ -116,8 +116,9 @@ open class ImageButton: Button {
     }
 
     public func setGlassEffect(size: NSSize? = nil, tintColor: NSColor? = nil, forceAppearance: LiquidGlassAppearance? = nil, interactive: Bool = true) {
-        guard _glassView == nil else { return }
-        let glass = LiquidGlassView(frame: NSZeroRect, cornerRadius: 999, hasShadow: true, hasBorder: true, forceAppearance: forceAppearance, customTint: tintColor)
+        let controls = InterfaceStyle.current.controls
+        guard _glassView == nil, tintColor != nil || controls.drawsUntintedGlass else { return }
+        let glass = LiquidGlassView(frame: NSZeroRect, cornerRadius: controls.glassMaxCornerRadius, hasShadow: true, hasBorder: true, forceAppearance: forceAppearance, customTint: tintColor)
         _intendedGlassTint = tintColor
         glass.customTint = tintColor
         glass.onAppearanceChange = { [weak self] appearance in

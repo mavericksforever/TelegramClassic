@@ -460,7 +460,7 @@ public class ChatEmptyPeerView: TableRowView {
     private var introInfoView: TextView?
 
     public required init(frame frameRect: NSRect) {
-        self.bgView = LiquidGlassView(frame: .zero, cornerRadius: 20, hasShadow: false, hasBorder: false, customTint: theme.colors.background)
+        self.bgView = LiquidGlassView(frame: .zero, cornerRadius: ChatStyle.current.serviceCardCornerRadius, hasShadow: false, hasBorder: false, customTint: theme.colors.background)
         super.init(frame: frameRect)
         addSubview(bgView, positioned: .below, relativeTo: nil)
         addSubview(textView)
@@ -521,9 +521,9 @@ public class ChatEmptyPeerView: TableRowView {
         imageView?.update(with: media, size: contentSize, context: item.chatInteraction.interactionContext, parent: nil, table: item.table)
         imageView?.fetch(userInitiated: true)
         // The media sits flush against the top edge of the glass bg, so its
-        // top corners need to match `bgView.cornerRadius` (set to 20 whenever
+        // top corners need to match `bgView.cornerRadius` (set to `serviceCardCornerRadius` whenever
         // a media view is present — see `updateLayout`'s corner-radius math).
-        imageView?.layer?.cornerRadius = 20
+        imageView?.layer?.cornerRadius = ChatStyle.current.serviceCardCornerRadius
         imageView?.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
         imageView?.layer?.masksToBounds = true
     }
@@ -700,9 +700,10 @@ public class ChatEmptyPeerView: TableRowView {
         }
 
         let singleLine = item.textViewLayout.lines.count == 1
+        let cardCornerRadius = ChatStyle.current.serviceCardCornerRadius
         bgView.cornerRadius = (imageView == nil && premRequiredImageView == nil)
-            ? (singleLine ? textView.frame.height / 2 : 20)
-            : 20
+            ? (singleLine ? textView.frame.height / 2 : cardCornerRadius)
+            : cardCornerRadius
     }
 
     /// Position the leading image/sticker (if any) and the textView relative

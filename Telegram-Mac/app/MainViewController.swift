@@ -298,21 +298,8 @@ final class UpdateTabController: GenericViewController<UpdateTabView> {
 
 final class MainController_View: View {
     private let bgView: View = View()
-    private let glassView: LiquidGlassView
+    private let glassView: LiquidGlassView?
 
-    /// 20pt on macOS 26+ to match the liquid-glass aesthetic (on macOS 27
-    /// the window radius is raised to 28pt through private API, keeping
-    /// this inset pane concentric). Older systems keep the subtle 8pt.
-    private static var containerCornerRadius: CGFloat {
-        if #available(macOS 26.0, *) {
-            return 20
-        }
-        return 8
-    }
-
-    /// In single-window mode the surrounding chrome is smaller, so the
-    /// inner corner shrinks to match: 14pt on macOS Tahoe (liquid glass),
-    /// 4pt on older systems where the curve is already subtle.
     var compactCorners: Bool = false {
         didSet {
             if compactCorners != oldValue {
@@ -325,29 +312,31 @@ final class MainController_View: View {
         if compactCorners {
             return 0
         }
-        return MainController_View.containerCornerRadius
+        return InterfaceStyle.current.split.paneCornerRadius
     }
 
     private func applyCornerRadius() {
         let radius = currentCornerRadius
         bgView.layer?.cornerRadius = radius
-        glassView.cornerRadius = radius
+        glassView?.cornerRadius = radius
     }
 
     required init(frame frameRect: NSRect) {
-        let cornerRadius = MainController_View.containerCornerRadius
-        glassView = LiquidGlassView(frame: frameRect.size.bounds, cornerRadius: cornerRadius, hasShadow: true, hasBorder: true, tintAlpha: 0, customTint: presentation.colors.background, forceBlur: true)
+        let split = InterfaceStyle.current.split
+        glassView = split.floatingPanes ? LiquidGlassView(frame: frameRect.size.bounds, cornerRadius: split.paneCornerRadius, hasShadow: true, hasBorder: true, tintAlpha: 0, customTint: presentation.colors.background, forceBlur: true) : nil
         super.init(frame: frameRect)
 
         self.layer?.masksToBounds = false
         self.backgroundColor = .clear
 
         bgView.backgroundColor = presentation.colors.background
-        bgView.layer?.cornerRadius = cornerRadius
+        bgView.layer?.cornerRadius = split.paneCornerRadius
         bgView.layer?.masksToBounds = true
 
         addSubview(bgView)
-        addSubview(glassView)
+        if let glassView {
+            addSubview(glassView)
+        }
     }
 
     required init?(coder: NSCoder) {
@@ -357,7 +346,7 @@ final class MainController_View: View {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         bgView.backgroundColor = theme.colors.background
-        glassView.customTint = theme.colors.background
+        glassView?.customTint = theme.colors.background
     }
 
     override func layout() {
@@ -367,8 +356,10 @@ final class MainController_View: View {
 
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         transition.updateFrame(view: bgView, frame: CGRect(origin: .zero, size: size))
-        transition.updateFrame(view: glassView, frame: CGRect(origin: .zero, size: size))
-        glassView.updateLayout(size: size, transition: transition)
+        if let glassView {
+            transition.updateFrame(view: glassView, frame: CGRect(origin: .zero, size: size))
+            glassView.updateLayout(size: size, transition: transition)
+        }
     }
 }
 
@@ -382,7 +373,7 @@ class MainViewController: TelegramGenericViewController<MainController_View> {
     private let phoneCalls:RecentCallsViewController
     private let layoutDisposable:MetaDisposable = MetaDisposable()
     private let updateController: UpdateTabController
-    private let connectingStatusView: ConnectingStatusView = ConnectingStatusView(frame: NSRect(origin: .zero, size: ConnectingStatusView.collapsedSize))
+    private let connectingStatusView: ConnectingStatusView? = InterfaceStyle.current.window.showsConnectingStatusInTitlebar ? nil : ConnectingStatusView(frame: NSRect(origin: .zero, size: ConnectingStatusView.collapsedSize))
     private let connectingStatusDisposable = MetaDisposable()
 
     override var containerCornerRadius: CGFloat {
@@ -447,6 +438,9 @@ class MainViewController: TelegramGenericViewController<MainController_View> {
     }
 
     private func layoutConnectingStatusView() {
+        guard let connectingStatusView else {
+            return
+        }
         let size = connectingStatusView.frame.size
         let y = bounds.height - size.height - 40 - 20
         connectingStatusView.setFrameOrigin(NSMakePoint(20, y))
@@ -485,14 +479,16 @@ class MainViewController: TelegramGenericViewController<MainController_View> {
             self?.updateChatListBottomOverlays()
         }
 
-        connectingStatusView.isHidden = true
-        addSubview(connectingStatusView)
-        connectingStatusDisposable.set((context.networkStatusManager.statusSignal |> deliverOnMainQueue).start(next: { [weak self] status in
-            guard let self = self else { return }
-            self.connectingStatusView.isHidden = status == nil
-            self.connectingStatusView.update(status: status, animated: true)
-            self.layoutConnectingStatusView()
-        }))
+        if let connectingStatusView {
+            connectingStatusView.isHidden = true
+            addSubview(connectingStatusView)
+            connectingStatusDisposable.set((context.networkStatusManager.statusSignal |> deliverOnMainQueue).start(next: { [weak self, weak connectingStatusView] status in
+                guard let self, let connectingStatusView else { return }
+                connectingStatusView.isHidden = status == nil
+                connectingStatusView.update(status: status, animated: true)
+                self.layoutConnectingStatusView()
+            }))
+        }
                 
         tabController.add(tab: TabAnimatedItem(.tab_contacts, image: theme.icons.tab_contacts, selectedImage: theme.icons.tab_contacts_active, controller: contacts))
         

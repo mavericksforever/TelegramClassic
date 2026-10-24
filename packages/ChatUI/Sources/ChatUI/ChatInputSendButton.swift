@@ -127,7 +127,7 @@ public final class ChatInputSendButton: View {
     private var first: Bool = true
 
     public var isInField: Bool {
-        return activeView === send
+        return ChatStyle.current.input.send.movesIntoField && activeView === send
     }
 
     public var hasAppliedState: Bool {
@@ -216,12 +216,12 @@ public final class ChatInputSendButton: View {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
 
-        let icon = chatInteraction.presentation.state == .editing ? theme.icons.chat_header_done : theme.icons.send_message_large
-        send.set(image: icon, for: .Normal)
-        send.set(background: theme.colors.accent, for: .Normal)
-        send.set(background: theme.colors.accent.withAlphaComponent(0.8), for: .Highlight)
-        send.sizeToFit(.zero, ChatInputSendButton.fieldSize, thatFit: true)
-        send.layer?.cornerRadius = ChatInputSendButton.fieldSize.height / 2
+        let sendStyle = ChatStyle.current.input.send
+        send.set(image: sendStyle.icon(theme, chatInteraction.presentation.state == .editing), for: .Normal)
+        send.set(background: sendStyle.fill(theme.colors), for: .Normal)
+        send.set(background: sendStyle.fill(theme.colors).withAlphaComponent(0.8), for: .Highlight)
+        send.sizeToFit(.zero, sendStyle.size, thatFit: true)
+        send.layer?.cornerRadius = sendStyle.size.height / 2
         send.layer?.masksToBounds = false
 
         voice.setGlassEffect(size: NSMakeSize(40, 40))
@@ -231,7 +231,7 @@ public final class ChatInputSendButton: View {
 
         let stopIcon = generateImage(NSMakeSize(14, 14), contextGenerator: { size, context in
             context.clear(size.bounds)
-            context.setFillColor(theme.colors.text.cgColor)
+            context.setFillColor(ChromeIconColors.current.primary(theme.colors).cgColor)
             context.addPath(CGPath(roundedRect: size.bounds, cornerWidth: 3, cornerHeight: 3, transform: nil))
             context.fillPath()
         })!
@@ -246,7 +246,7 @@ public final class ChatInputSendButton: View {
     private func updateVoiceIcon(animated: Bool) {
         voice.removeImage(for: .Normal)
         voiceIcon.isHidden = false
-        voiceIcon.update(state: FastSettings.recordingState, color: theme.colors.text, animated: animated)
+        voiceIcon.update(state: FastSettings.recordingState, color: ChromeIconColors.current.primary(theme.colors), animated: animated)
     }
 
     public func prepare(with chatInteraction: ChatInteraction) {
@@ -341,9 +341,10 @@ public final class ChatInputSendButton: View {
         let previousIcon = send.imageView.image
         let previousIconFrame = send.imageView.frame
         let morphsIcon = animated && !first && oldState.isEditing != state.isEditing && oldState.kind == .send && state.kind == .send
+        let sendStyle = ChatStyle.current.input.send
         send.animates = false
-        send.set(image: state.isEditing ? theme.icons.chat_header_done : theme.icons.send_message_large, for: .Normal)
-        send.sizeToFit(.zero, ChatInputSendButton.fieldSize, thatFit: true)
+        send.set(image: sendStyle.icon(theme, state.isEditing), for: .Normal)
+        send.sizeToFit(.zero, sendStyle.size, thatFit: true)
         stop.sizeToFit(.zero, NSMakeSize(40, 40), thatFit: true)
         send.animates = true
         send.isEnabled = state.isSendEnabled
@@ -431,7 +432,7 @@ public final class ChatInputSendButton: View {
                 prevView.layer?.opacity = 0.0
             }
             if anim {
-                let isFieldTransition = newView === send || prevView === send
+                let isFieldTransition = sendStyle.movesIntoField && (newView === send || prevView === send)
                 if isFieldTransition {
                     newView.layer?.animateAlpha(from: 0.0, to: 1.0, duration: ChatInputSendButton.fieldFadeDuration)
                     if newView === send {

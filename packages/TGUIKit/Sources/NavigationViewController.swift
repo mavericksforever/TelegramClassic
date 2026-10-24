@@ -390,6 +390,8 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
             self.navigationEdgeBlur = EdgeEffectView(frame: .zero)
             super.init(frame: frameRect)
 
+            navigationBar.drawsChrome = InterfaceStyle.current.navigationBar.drawsChrome
+
             self.layer?.masksToBounds = false
             self.backgroundColor = .clear
 
@@ -452,7 +454,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
 
         func updateInternalLayout(barHeight: CGFloat, slotLeadingInset: CGFloat = 0, slotTrailingInset: CGFloat = 0, inset: CGFloat = 0, barOffset: CGFloat = 0, transition: ContainedViewLayoutTransition = .immediate) {
 
-            let barIsReal = controller?.barIsReal ?? false
+            let barIsReal = controller?.contentIsBelowBar ?? false
 
             let contentTop = barIsReal ? barHeight + barOffset : 0
 
@@ -556,7 +558,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
         let contentBounds = container.contentView.bounds
         let inset = self.slotLeadingInset
         controller.view.frame = NSMakeRect(inset, 0, max(0, contentBounds.width - inset - self.slotTrailingInset), contentBounds.height)
-        controller.updateNavigationHeaderOverflow(chromeOffset, transition: .immediate)
+        deliverHeaderOverflow(to: controller, transition: .immediate)
     }
 
     /// Scales an `animationStyle.duration` up by the share of total width that
@@ -580,7 +582,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
         let contentBounds = activeContainer.contentView.bounds
         let inset = slotLeadingInset
         controller.updateFrame(NSMakeRect(inset, 0, max(0, contentBounds.width - inset - slotTrailingInset), contentBounds.height), inset: newFrame.minY, transition: transition)
-        controller.updateNavigationHeaderOverflow(chromeOffset, transition: transition)
+        deliverHeaderOverflow(to: controller, transition: transition)
     }
 
     private(set) var headerOverflow: CGFloat = 0
@@ -591,6 +593,10 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
 
     private func barOffset(for controller: ViewController) -> CGFloat {
         return controller.absorbsNavigationHeaderOverflow ? 0 : headerOverflow
+    }
+
+    private func deliverHeaderOverflow(to controller: ViewController, transition: ContainedViewLayoutTransition) {
+        controller.updateNavigationHeaderOverflow(controller.contentIsBelowBar ? 0 : barOffset(for: controller), transition: transition)
     }
 
     func updateHeaderFrames(transition: ContainedViewLayoutTransition) {
@@ -618,7 +624,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
         } else {
             let activeContainer = containerOf(controller)
             activeContainer.updateInternalLayout(barHeight: controller.barHeight, slotLeadingInset: slotLeadingInset, slotTrailingInset: slotTrailingInset, inset: activeContainer.frame.minY, barOffset: headerOverflow, transition: transition)
-            controller.updateNavigationHeaderOverflow(headerOverflow, transition: transition)
+            deliverHeaderOverflow(to: controller, transition: transition)
         }
     }
 
@@ -808,7 +814,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
 
             if let tied = controller.tied {
                 containerView.addSubview(containerOf(tied), positioned: .below, relativeTo: containerOf(controller))
-                setControllerFrame(tied, frame: NSMakeRect(0, barInset + tied.bar.height, containerSize.width, containerSize.height - barInset - tied.bar.height))
+                setControllerFrame(tied, frame: controllerFrame(for: tied))
                 if tied.widthOnDisappear != nil {
                     tied.widthOnDisappear = containerSize.width
                 }
@@ -1060,7 +1066,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
 
 
             if popInteractiveInset == nil {
-                controllerContainer.backdropView.layer?.opacity = 0
+                controllerContainer.backdropView.layer?.opacity = Float(transitionOpacity(0))
                 previousContainer.backdropView.layer?.opacity = 1
             }
 
@@ -1218,9 +1224,13 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
         })
 
         if style == .pop {
-            previousContainer.backdropView._change(opacity: 0, animated: true, duration: scaledDuration / 3, timingFunction: .spring)
+            previousContainer.backdropView._change(opacity: transitionOpacity(0), animated: true, duration: scaledDuration / 3, timingFunction: .spring)
         }
 
+    }
+
+    private func transitionOpacity(_ opacity: CGFloat) -> CGFloat {
+        return InterfaceStyle.current.fadesNavigationTransitions ? opacity : 1
     }
     
     public func first(_ f:(ViewController)->Bool) -> ViewController? {
@@ -1464,8 +1474,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
                     let fullSlide = self.controller.fullSlideAnimation
 
                     
-                    let pInsets = previous.insets
-                    self.setControllerFrame(previous, frame: NSMakeRect(pInsets.left + (fullSlide ?  -self.frame.width : 0), previous.barHeight + pInsets.top, self.frame.width - pInsets.left - pInsets.right, self.frame.height - previous.barHeight - pInsets.top - pInsets.bottom))
+                    self.setControllerFrame(previous, frame: self.controllerFrame(for: previous, baseX: fullSlide ? -self.frame.width : 0))
 
                     self.containerView.addSubview(previousContainer, positioned: .below, relativeTo: self.navigationBar)
 
@@ -1515,7 +1524,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
 
                     let progress = min(1, max(0, delta / self.containerView.frame.width))
                     let opacityProgress = min(1, progress * (fullSlide ? 1 : 2))
-                    activeContainer.layer?.opacity = Float(1 - opacityProgress)
+                    activeContainer.layer?.opacity = Float(self.transitionOpacity(1 - opacityProgress))
 
                     return .deltaUpdated(available: nPosition - activeRestX)
 
@@ -1577,7 +1586,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
                     new._frameRect = self.containerView.bounds
                     let newContainer = self.containerOf(new)
                     let activeContainer = self.containerOf(self.controller)
-                    self.setControllerFrame(new, frame: NSMakeRect(self.containerView.frame.width, activeContainer.frame.minY, self.containerView.frame.width, self.containerView.frame.height))
+                    self.setControllerFrame(new, frame: self.controllerFrame(for: new, baseX: self.containerView.frame.width))
 
 
                     let prevBackgroundView: NSView = View(frame: self.containerView.frame)
@@ -1595,7 +1604,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
                         self.swipeBackgroundViews.append(WeakReference(value: nextBackgroundView))
                     }
 
-                    newContainer.backdropView.layer?.opacity = 0
+                    newContainer.backdropView.layer?.opacity = Float(self.transitionOpacity(0))
 
                     self.containerView.addSubview(newContainer, positioned: .above, relativeTo: activeContainer)
                     self.lock = true
@@ -1615,7 +1624,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
                     let fullSlide = self.controller.fullSlideAnimation
 
                     let opacityProgress = min(1, progress * (fullSlide ? 1 : 2))
-                    newContainer.backdropView.layer?.opacity = Float(opacityProgress)
+                    newContainer.backdropView.layer?.opacity = Float(self.transitionOpacity(opacityProgress))
 
                     return .deltaUpdated(available: delta)
                 case let .success(_, controller):
@@ -1636,7 +1645,7 @@ open class NavigationViewController: ViewController, CALayerDelegate,CAAnimation
 
                     let scaledDuration = self.scaledAnimationDuration(animationStyle.duration)
                     newContainer._change(pos: NSMakePoint(self.containerView.frame.width, newContainer.frame.minY), animated: animated, duration: scaledDuration, timingFunction: animationStyle.function)
-                    newContainer.backdropView._change(opacity: 0, animated: animated, duration: scaledDuration / 3, timingFunction: animationStyle.function)
+                    newContainer.backdropView._change(opacity: self.transitionOpacity(0), animated: animated, duration: scaledDuration / 3, timingFunction: animationStyle.function)
                     activeContainer._change(pos: NSMakePoint(activeInsetLeft, activeContainer.frame.minY), animated: animated, duration: scaledDuration, timingFunction: animationStyle.function, completion: { [weak self, weak new] completed in
                         self?.removeSwipeBackgroundViews()
                         self?.controller.removeBackgroundCap()

@@ -872,7 +872,11 @@ public extension NSView {
                         presentY =  presentation.frame.minY
                         presentX = presentation.frame.minX
                     }
-                    layer.animatePosition(from: NSMakePoint(presentX, presentY), to: position, duration: duration, timingFunction: timingFunction, removeOnCompletion: removeOnCompletion, additive: additive, completion: completion)
+                    let presentPosition = NSMakePoint(presentX, presentY)
+                    if presentPosition == position && !additive {
+                        layer.removeAnimation(forKey: "position")
+                    }
+                    layer.animatePosition(from: presentPosition, to: position, duration: duration, timingFunction: timingFunction, removeOnCompletion: removeOnCompletion, additive: additive, completion: completion)
 
                 } else {
                     layer.removeAnimation(forKey: "position")
@@ -889,7 +893,11 @@ public extension NSView {
                 presentY =  presentation.frame.minY
                 presentX = presentation.frame.minX
             }
-            self.layer?.animatePosition(from: NSMakePoint(presentX, presentY), to: position, duration: duration, timingFunction: timingFunction, removeOnCompletion: removeOnCompletion, additive: additive, completion: completion)
+            let presentPosition = NSMakePoint(presentX, presentY)
+            if presentPosition == position && !additive {
+                self.layer?.removeAnimation(forKey: "position")
+            }
+            self.layer?.animatePosition(from: presentPosition, to: position, duration: duration, timingFunction: timingFunction, removeOnCompletion: removeOnCompletion, additive: additive, completion: completion)
 
         } else {
             self.layer?.removeAnimation(forKey: "position")
@@ -930,7 +938,11 @@ public extension NSView {
                     presentBounds.size.width = NSWidth(presentation.bounds)
                     presentBounds.size.height = NSHeight(presentation.bounds)
                 }
-                layer.animateBounds(from: presentBounds, to: NSMakeRect(0, 0, size.width, size.height), duration: duration, timingFunction: timingFunction, removeOnCompletion: removeOnCompletion, completion: main ? completion : nil)
+                let targetBounds = NSMakeRect(0, 0, size.width, size.height)
+                if presentBounds == targetBounds {
+                    layer.removeAnimation(forKey: "bounds")
+                }
+                layer.animateBounds(from: presentBounds, to: targetBounds, duration: duration, timingFunction: timingFunction, removeOnCompletion: removeOnCompletion, completion: main ? completion : nil)
             } else {
                 layer.removeAnimation(forKey: "bounds")
             }

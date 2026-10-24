@@ -53,11 +53,11 @@ public class ChatListRevealItem: TableStickItem {
 
 
     public override var backdorColor: NSColor {
-        return customBackgroundColor ?? .clear
+        return customBackgroundColor ?? ChatListStyle.current.folderTabs.background(presentation)
     }
 
     public override var borderColor: NSColor {
-        return .clear
+        return ChatListStyle.current.folderTabs.border(presentation)
     }
 
     public override var singletonItem: Bool {
@@ -116,7 +116,7 @@ public class ChatListRevealItem: TableStickItem {
     }
     
     public override var height: CGFloat {
-        return 30
+        return ChatListStyle.current.folderTabs.height
     }
     
     static func accessibilityTabTitle(_ title: String, unreadCount: Int?) -> String {
@@ -257,12 +257,13 @@ public final class ChatListRevealView : TableStickView {
         animated = animated && splitViewState == context.layout
         self.splitViewState = context.layout
         
-        let segmentTheme = ScrollableSegmentTheme(background: .clear, border: item.presentation.colors.border, selector: item.presentation.colors.accent, inactiveText: item.presentation.colors.grayText, activeText: item.presentation.colors.text, textFont: .normal(.text))
+        let style = ChatListStyle.current.folderTabs
+        let segmentTheme = ScrollableSegmentTheme(background: style.background(item.presentation), border: item.presentation.colors.border, selector: item.presentation.colors.accent, inactiveText: item.presentation.colors.grayText, activeText: style.activeText(item.presentation), textFont: style.font)
 
         segmentView.theme = segmentTheme
 
         var index: Int = 0
-        let insets = NSEdgeInsets(left: 10, right: 10)
+        let insets = style.itemInsets
         var items:[ScrollableSegmentItem] = []
         for tab in item.tabs {
             let unreadCount = item.counters.count(for: tab)
@@ -365,9 +366,9 @@ public final class ChatListRevealView : TableStickView {
     public override func layout() {
         super.layout()
 
+        let overlap = ChatListStyle.current.folderTabs.topOverlap
         containerView.frame = bounds
-        segmentView.frame = NSMakeRect(0, -10, containerView.bounds.width, containerView.bounds.height
-         + 10)
+        segmentView.frame = NSMakeRect(0, -overlap, containerView.bounds.width, containerView.bounds.height + overlap)
     }
     
     public required init?(coder: NSCoder) {

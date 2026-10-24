@@ -12,9 +12,28 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
         let gifts: [ProfileGiftsContext.State.StarGift]
     }
 
-    static let height: CGFloat = 40
-    private static let lensInset: CGFloat = 3
-    private static let itemInset: CGFloat = 16
+    private static var style: PeerInfoStyle.Media {
+        return PeerInfoStyle.current.media
+    }
+    static var height: CGFloat {
+        return style.tabsHeight
+    }
+    private static var contentInset: CGFloat {
+        switch style.selection {
+        case let .lens(inset):
+            return inset
+        case .underline:
+            return 0
+        }
+    }
+    private static var selectionCornerRadius: CGFloat {
+        switch style.selection {
+        case .lens:
+            return (height - contentInset * 2) / 2
+        case let .underline(_, cornerRadius):
+            return cornerRadius
+        }
+    }
     private static let giftIconSize: CGFloat = 18
     private static let giftIconSpacing: CGFloat = 1
     private static let giftTitleSpacing: CGFloat = 2
@@ -37,8 +56,9 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
             fatalError("init(coder:) has not been implemented")
         }
 
-        func update(tab: Tab, account: Account, theme: TelegramPresentationTheme, animated: Bool) {
-            let layout = TextViewLayout(.initialize(string: tab.title, color: theme.colors.text, font: .medium(.title)), maximumNumberOfLines: 1)
+        func update(tab: Tab, selected: Bool, account: Account, theme: TelegramPresentationTheme, animated: Bool) {
+            let style = PeerMediaTabsView.style
+            let layout = TextViewLayout(.initialize(string: tab.title, color: style.textColor(theme.colors, selected), font: style.font), maximumNumberOfLines: 1)
             layout.measure(width: .greatestFiniteMagnitude)
             textView.update(layout)
 
@@ -91,7 +111,7 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
         }
     }
 
-    private let glass = LiquidGlassView(frame: NSZeroRect, cornerRadius: PeerMediaTabsView.height / 2, hasShadow: true, hasBorder: true)
+    private let glass: LiquidGlassView? = PeerMediaTabsView.style.tabsFloat ? LiquidGlassView(frame: NSZeroRect, cornerRadius: PeerMediaTabsView.height / 2, hasShadow: true, hasBorder: true) : nil
     private let clipView = View()
     private let contentView = View()
     private let selectionView = View()
@@ -112,13 +132,15 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
         super.init(frame: frameRect)
         layer?.masksToBounds = false
         isHidden = true
-        addSubview(glass)
+        if let glass {
+            addSubview(glass)
+            clipView.layer?.cornerRadius = (PeerMediaTabsView.height - PeerMediaTabsView.contentInset * 2) / 2
+        }
         clipView.layer?.masksToBounds = true
-        clipView.layer?.cornerRadius = (PeerMediaTabsView.height - PeerMediaTabsView.lensInset * 2) / 2
         addSubview(clipView)
         clipView.addSubview(contentView)
         selectionView.isHidden = true
-        selectionView.layer?.cornerRadius = (PeerMediaTabsView.height - PeerMediaTabsView.lensInset * 2) / 2
+        selectionView.layer?.cornerRadius = PeerMediaTabsView.selectionCornerRadius
         contentView.addSubview(selectionView)
     }
 
@@ -149,13 +171,24 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
     }
 
     private var itemFrames: [NSRect] {
-        var x: CGFloat = 0
-        return tabs.map { tab in
-            let width = (itemViews[tab.id]?.contentWidth ?? 0) + PeerMediaTabsView.itemInset * 2
-            let frame = NSMakeRect(x, 0, width, PeerMediaTabsView.height - PeerMediaTabsView.lensInset * 2)
-            x = frame.maxX
+        let style = PeerMediaTabsView.style
+        let widths = tabs.map { (itemViews[$0.id]?.contentWidth ?? 0) + style.itemInset * 2 }
+        let gap = style.tabsFloat ? 0 : fillGap(widths)
+        var x: CGFloat = gap
+        return widths.map { width in
+            let frame = NSMakeRect(x, 0, width, PeerMediaTabsView.height - PeerMediaTabsView.contentInset * 2)
+            x = frame.maxX + gap
             return frame
         }
+    }
+
+    private func fillGap(_ widths: [CGFloat]) -> CGFloat {
+        let total = widths.reduce(0, +)
+        let available = frame.width - PeerMediaTabsView.contentInset * 2
+        guard widths.count > 1, total < available else {
+            return 0
+        }
+        return floor((available - total) / CGFloat(widths.count + 1))
     }
 
     private var contentWidth: CGFloat {
@@ -163,7 +196,8 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
     }
 
     func size(fitting width: CGFloat) -> NSSize {
-        return NSMakeSize(min(width, contentWidth + PeerMediaTabsView.lensInset * 2), PeerMediaTabsView.height)
+        let fittingWidth = PeerMediaTabsView.style.tabsFloat ? min(width, contentWidth + PeerMediaTabsView.contentInset * 2) : width
+        return NSMakeSize(fittingWidth, PeerMediaTabsView.height)
     }
 
     func update(tabs: [Tab], selected: Int64?, account: Account, animated: Bool) {
@@ -193,7 +227,7 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
                 contentView.addSubview(view)
                 itemViews[tab.id] = view
             }
-            view.update(tab: tab, account: account, theme: currentTheme, animated: animated && previousIds.contains(tab.id))
+            view.update(tab: tab, selected: tab.id == selected, account: account, theme: currentTheme, animated: animated && previousIds.contains(tab.id))
         }
 
         let frames = itemFrames
@@ -252,7 +286,13 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
         let progress = clamped - CGFloat(lower)
         let minX = frames[lower].minX + (frames[upper].minX - frames[lower].minX) * progress
         let width = frames[lower].width + (frames[upper].width - frames[lower].width) * progress
-        return NSMakeRect(minX, 0, width, frames[lower].height)
+        switch PeerMediaTabsView.style.selection {
+        case .lens:
+            return NSMakeRect(minX, 0, width, frames[lower].height)
+        case let .underline(height, _):
+            let itemInset = PeerMediaTabsView.style.itemInset
+            return NSMakeRect(minX + itemInset, frames[lower].height - height, width - itemInset * 2, height * 2)
+        }
     }
 
     private func clampedScrollOffset(_ offset: CGFloat, visibleWidth: CGFloat) -> CGFloat {
@@ -262,16 +302,25 @@ final class PeerMediaTabsView: View, HorizontalScrollConsuming {
     private func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         let focusSelected = focusSelectedOnLayout
         focusSelectedOnLayout = false
-        selectionView.backgroundColor = currentTheme.colors.text.withAlphaComponent(currentTheme.colors.isDark ? 0.1 : 0.075)
+        selectionView.backgroundColor = PeerMediaTabsView.style.selectionColor(currentTheme.colors)
 
-        transition.updateFrame(view: glass, frame: size.bounds)
-        glass.updateLayout(size: size, transition: transition)
+        if let glass {
+            transition.updateFrame(view: glass, frame: size.bounds)
+            glass.updateLayout(size: size, transition: transition)
+        }
 
-        let inset = PeerMediaTabsView.lensInset
+        let inset = PeerMediaTabsView.contentInset
         let clipFrame = NSMakeRect(inset, inset, max(0, size.width - inset * 2), max(0, size.height - inset * 2))
         transition.updateFrame(view: clipView, frame: clipFrame)
 
         let frames = itemFrames
+        if !PeerMediaTabsView.style.tabsFloat {
+            for (tab, itemFrame) in zip(tabs, frames) {
+                if let view = itemViews[tab.id] {
+                    transition.updateFrame(view: view, frame: itemFrame)
+                }
+            }
+        }
         var selection: NSRect?
         if let position = selectionPosition, !frames.isEmpty {
             selection = selectionFrame(at: position, frames: frames)

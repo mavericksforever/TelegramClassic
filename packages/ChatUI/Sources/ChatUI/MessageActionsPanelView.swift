@@ -18,8 +18,25 @@ import FoundationUtils
 import ChatHistoryModel
 
 
+public protocol MessageActionsPanel: View, Notifable {
+    func prepare(with chatInteraction: ChatInteraction)
+    func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition)
+}
 
-public class MessageActionsPanelView: Control, Notifable {
+public func makeMessageActionsPanel(frame: NSRect) -> MessageActionsPanel {
+    return makeChatInputMessageActionsPanel(frame: frame)
+}
+
+func makeChatInputMessageActionsPanel(frame: NSRect) -> MessageActionsPanel & ChatInputGlassMorphing {
+    switch ChatStyle.current.selectionPanel {
+    case .glassPills:
+        return MessageActionsPanelView(frame: frame)
+    case .textButtons:
+        return ClassicMessageActionsPanelView(frame: frame)
+    }
+}
+
+public class MessageActionsPanelView: Control, Notifable, MessageActionsPanel {
 
     private let deleteButton: ImageButton = ImageButton()
     private let forwardButton: ImageButton = ImageButton()
@@ -103,10 +120,11 @@ public class MessageActionsPanelView: Control, Notifable {
     public func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         let edge: CGFloat = 12
         let gap: CGFloat = 10
-        let contentHeight = size.height - ChatInputView.inputBottomInset
+        let contentY = ChatInputView.inputTopInset
+        let contentHeight = size.height - contentY - ChatInputView.inputBottomInset
 
-        let deleteFrame = NSMakeRect(edge, 0, deleteButton.frame.width, deleteButton.frame.height)
-        let forwardFrame = NSMakeRect(size.width - edge - forwardButton.frame.width, 0, forwardButton.frame.width, forwardButton.frame.height)
+        let deleteFrame = NSMakeRect(edge, contentY, deleteButton.frame.width, deleteButton.frame.height)
+        let forwardFrame = NSMakeRect(size.width - edge - forwardButton.frame.width, contentY, forwardButton.frame.width, forwardButton.frame.height)
 
         transition.updateFrame(view: deleteButton, frame: deleteFrame)
         transition.updateFrame(view: forwardButton, frame: forwardFrame)
@@ -115,7 +133,7 @@ public class MessageActionsPanelView: Control, Notifable {
         countTitle.resize(maxTextWidth)
         let containerWidth = countTitle.frame.width + 20
         let containerX = (size.width - containerWidth) / 2
-        let containerFrame = NSMakeRect(containerX, 0, containerWidth, contentHeight)
+        let containerFrame = NSMakeRect(containerX, contentY, containerWidth, contentHeight)
 
         transition.updateFrame(view: countContainer, frame: containerFrame)
         countTitle.center()

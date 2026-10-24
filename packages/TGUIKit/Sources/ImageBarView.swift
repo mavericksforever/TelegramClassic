@@ -2,8 +2,6 @@ import Cocoa
 
 public class ImageBarView: BarView {
 
-    public static let pillSize: CGFloat = 40
-
     public var button: ImageButton = ImageButton()
 
     public func set(image: CGImage, highlightImage: CGImage? = nil) {
@@ -16,13 +14,16 @@ public class ImageBarView: BarView {
     public init(controller: ViewController, _ image: CGImage, _ highlight: CGImage? = nil) {
         super.init(controller: controller)
 
-        button.scaleOnClick = true
+        let metrics = InterfaceStyle.current.barButton
         button.disableActions()
         button.animates = false
         button.autohighlight = false
-        button.layer?.cornerRadius = ImageBarView.pillSize / 2
-        button.layer?.masksToBounds = true
-        button.setGlassEffect()
+        if metrics.usesGlass {
+            button.scaleOnClick = true
+            button.layer?.cornerRadius = metrics.minSide / 2
+            button.layer?.masksToBounds = true
+            button.setGlassEffect()
+        }
 
         addSubview(button)
         self.layer?.masksToBounds = false
@@ -39,9 +40,9 @@ public class ImageBarView: BarView {
     }
 
     open override func fit(to maxWidth: CGFloat, transition: ContainedViewLayoutTransition = .immediate) -> CGFloat {
-        let size = ImageBarView.pillSize
-        button.sizeToFit(.zero, NSMakeSize(size, size), thatFit: true, transition: transition)
-        return size
+        let metrics = InterfaceStyle.current.barButton
+        button.sizeToFit(.zero, NSMakeSize(metrics.minSide, metrics.minSide), thatFit: true, transition: transition)
+        return max(button.frame.width, metrics.imageMinWidth)
     }
 
     open override func layout() {
@@ -50,11 +51,11 @@ public class ImageBarView: BarView {
     }
 
     open override func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        let pillSize = ImageBarView.pillSize
-        let x = floorToScreenPixels(backingScaleFactor, (size.width - pillSize) / 2)
-        let y = floorToScreenPixels(backingScaleFactor, (size.height - pillSize) / 2)
-        transition.updateFrame(view: button, frame: NSMakeRect(x, y, pillSize, pillSize))
-        button.updateLayout(size: NSMakeSize(pillSize, pillSize), transition: transition)
+        let buttonSize = button.frame.size
+        let x = floorToScreenPixels(backingScaleFactor, (size.width - buttonSize.width) / 2)
+        let y = floorToScreenPixels(backingScaleFactor, (size.height - buttonSize.height) / 2)
+        transition.updateFrame(view: button, frame: NSMakeRect(x, y, buttonSize.width, buttonSize.height))
+        button.updateLayout(size: buttonSize, transition: transition)
     }
     
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {

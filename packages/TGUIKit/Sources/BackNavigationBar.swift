@@ -2,11 +2,9 @@ import Cocoa
 
 open class BackNavigationBar: TextButtonBarView {
 
-    private static let size: CGFloat = 40
-
     public init(_ controller:ViewController, glassForceAppearance: LiquidGlassAppearance? = nil) {
         let backSettings = controller.backSettings()
-        super.init(controller: controller, text: "", style: controller.barPresentation, glassForceAppearance: glassForceAppearance)
+        super.init(controller: controller, text: BackNavigationBar.title(backSettings), style: controller.barPresentation, glassForceAppearance: glassForceAppearance)
 
         if let image = backSettings.1 {
             set(image: image, for: .Normal)
@@ -27,7 +25,7 @@ open class BackNavigationBar: TextButtonBarView {
             return
         }
         let backSettings = controller.backSettings()
-        set(text: "", for: .Normal)
+        set(text: BackNavigationBar.title(backSettings), for: .Normal)
         if let image = backSettings.1 {
              set(image: image, for: .Normal)
         } else {
@@ -37,15 +35,20 @@ open class BackNavigationBar: TextButtonBarView {
         needsLayout = true
     }
 
-    open override func fit(to maxWidth: CGFloat, transition: ContainedViewLayoutTransition = .immediate) -> CGFloat {
-        let size = BackNavigationBar.size
-        button.sizeToFit(.zero, NSMakeSize(BackNavigationBar.size, BackNavigationBar.size), thatFit: true, transition: transition)
-        return size
+    private static func title(_ backSettings: (String, CGImage?)) -> String {
+        return InterfaceStyle.current.barButton.backShowsTitle ? backSettings.0 : ""
     }
-    
+
+    open override func fit(to maxWidth: CGFloat, transition: ContainedViewLayoutTransition = .immediate) -> CGFloat {
+        let metrics = InterfaceStyle.current.barButton
+        let maxSize = button.isEmpty ? NSMakeSize(metrics.minSide, metrics.minSide) : NSMakeSize(maxWidth, metrics.minSide)
+        button.sizeToFit(.zero, maxSize, thatFit: button.isEmpty, transition: transition)
+        return metrics.backLeadingMargin + button.frame.width + metrics.backTrailingMargin
+    }
+
     open override func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
         super.updateLayout(size: size, transition: transition)
-        transition.updateFrame(view: button, frame: button.centerFrameY(x: 0))
+        transition.updateFrame(view: button, frame: button.centerFrameY(x: InterfaceStyle.current.barButton.backLeadingMargin))
         button.updateLayout(size: button.frame.size, transition: transition)
     }
 

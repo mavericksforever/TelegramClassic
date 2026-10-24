@@ -53,13 +53,13 @@ public final class EntertainmentInteractions {
 }
 
 public final class EntertainmentView : View {
-    fileprivate static let tabsAreaHeight: CGFloat = 56
-
     static let glassTintAlpha: CGFloat = 0.55
 
+    private let style = EntertainmentStyle.current
     fileprivate var sectionView: NSView
-    private let glassView = LiquidGlassView(frame: NSZeroRect, cornerRadius: 18, hasShadow: false, hasBorder: true, tintAlpha: 0, forceBlur: true)
-    private let edgeView = ShadowView()
+    private lazy var glassView: LiquidGlassView? = style.usesGlass ? LiquidGlassView(frame: NSZeroRect, cornerRadius: 18, hasShadow: false, hasBorder: true, tintAlpha: 0, forceBlur: true) : nil
+    private lazy var edgeView: ShadowView? = style.tabsOverlayContent ? ShadowView() : nil
+    private lazy var tabsBorder: View? = style.tabsOverlayContent ? nil : View()
     private let tabs = GlassSegmentView(frame: NSZeroRect)
     private var tabStates: [EntertainmentState] = []
     fileprivate private(set) var selectedState: EntertainmentState?
@@ -67,13 +67,13 @@ public final class EntertainmentView : View {
 
     var showsTabsEdge: Bool = true {
         didSet {
-            edgeView.isHidden = !showsTabsEdge
+            edgeView?.isHidden = !showsTabsEdge
         }
     }
 
     var showsGlassBackground: Bool = true {
         didSet {
-            glassView.isHidden = !showsGlassBackground
+            glassView?.isHidden = !showsGlassBackground
         }
     }
     
@@ -102,13 +102,19 @@ public final class EntertainmentView : View {
     public init(sectionView: NSView, frame: NSRect) {
         self.sectionView = sectionView
         super.init(frame: frame)
-        self.addSubview(self.glassView)
+        if let glassView {
+            self.addSubview(glassView)
+        }
         self.addSubview(self.sectionView)
-        self.addSubview(self.edgeView)
+        if let edgeView {
+            self.addSubview(edgeView)
+            edgeView.direction = .vertical(true)
+            edgeView.isEventLess = true
+        }
+        if let tabsBorder {
+            self.addSubview(tabsBorder)
+        }
         self.addSubview(self.tabs)
-
-        self.edgeView.direction = .vertical(true)
-        self.edgeView.isEventLess = true
 
         self.tabs.didSelect = { [weak self] index in
             guard let self, index < self.tabStates.count else {
@@ -120,9 +126,10 @@ public final class EntertainmentView : View {
     
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        self.edgeView.shadowBackground = theme.colors.background.withAlphaComponent(0.6)
-        self.glassView.customTint = theme.colors.background.withAlphaComponent(EntertainmentView.glassTintAlpha)
-        self.glassView.updateLocalizationAndTheme(theme: theme)
+        self.edgeView?.shadowBackground = theme.colors.background.withAlphaComponent(0.6)
+        self.glassView?.customTint = theme.colors.background.withAlphaComponent(EntertainmentView.glassTintAlpha)
+        self.glassView?.updateLocalizationAndTheme(theme: theme)
+        self.tabsBorder?.backgroundColor = theme.colors.border
         self.updateTabs(animated: false)
     }
     
@@ -193,11 +200,12 @@ public final class EntertainmentView : View {
     
     public override func layout() {
         super.layout()
-        let tabsAreaHeight = EntertainmentView.tabsAreaHeight
-        self.glassView.frame = bounds
-        self.glassView.updateLayout(size: bounds.size, transition: .immediate)
-        self.sectionView.frame = bounds
-        self.edgeView.frame = NSMakeRect(0, frame.height - tabsAreaHeight, frame.width, tabsAreaHeight)
+        let tabsAreaHeight = style.tabsAreaHeight
+        self.glassView?.frame = bounds
+        self.glassView?.updateLayout(size: bounds.size, transition: .immediate)
+        self.sectionView.frame = NSMakeRect(0, 0, frame.width, frame.height - style.sectionBottomInset)
+        self.edgeView?.frame = NSMakeRect(0, frame.height - tabsAreaHeight, frame.width, tabsAreaHeight)
+        self.tabsBorder?.frame = NSMakeRect(0, frame.height - tabsAreaHeight, frame.width, .borderSize)
         let tabsSize = self.tabs.contentSize
         self.tabs.frame = NSMakeRect(floorToScreenPixels((frame.width - tabsSize.width) / 2), frame.height - tabsAreaHeight + (tabsAreaHeight - tabsSize.height) / 2, tabsSize.width, tabsSize.height)
         self.premiumView?.frame = bounds
@@ -394,30 +402,32 @@ public class EntertainmentViewController<Context: AccountContextProtocol>: Teleg
 
 
     public override var popoverBackgroundColor: NSColor {
-        return .clear
+        return EntertainmentStyle.current.usesGlass ? .clear : super.popoverBackgroundColor
     }
 
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         self.section.updateLocalizationAndTheme(theme: theme)
-        self.view.background = .clear
-        self.applyGlassStyle()
+        self.applySurfaceStyle(theme: theme)
     }
 
-    private func applyGlassStyle() {
-        if self.section.genericView._backgroundColor != .clear {
+    private func applySurfaceStyle(theme: PresentationTheme) {
+        let usesGlass = EntertainmentStyle.current.usesGlass
+        let background: NSColor = usesGlass ? .clear : theme.colors.background
+        self.view.background = background
+        if usesGlass, self.section.genericView._backgroundColor != .clear {
             self.section.genericView._backgroundColor = .clear
         }
         if emoji.isLoaded() {
-            emoji.view.background = .clear
+            emoji.view.background = background
         }
         if stickers.isLoaded() {
-            stickers.view.background = .clear
-            stickers.genericView.isGlass = true
+            stickers.view.background = background
+            stickers.genericView.isGlass = usesGlass
         }
         if gifs.isLoaded() {
-            gifs.view.background = .clear
-            gifs.genericView.isGlass = true
+            gifs.view.background = background
+            gifs.genericView.isGlass = usesGlass
         }
     }
     
@@ -473,12 +483,12 @@ public class EntertainmentViewController<Context: AccountContextProtocol>: Teleg
     
     public override func initializer() -> EntertainmentView {
         let rect = NSMakeRect(self._frameRect.minX, self._frameRect.minY, self._frameRect.width, self._frameRect.height - self.bar.height)
-        self.section._frameRect = rect
+        self.section._frameRect = NSMakeRect(rect.minX, rect.minY, rect.width, rect.height - EntertainmentStyle.current.sectionBottomInset)
         return EntertainmentView(sectionView: self.section.view, frame: rect)
     }
 
     private func updateSectionsBottomInset() {
-        let insets = NSEdgeInsets(bottom: EntertainmentView.tabsAreaHeight)
+        let insets = NSEdgeInsets(bottom: EntertainmentStyle.current.contentBottomInset)
         var tables: [TableView] = []
         if emoji.isLoaded() {
             tables.append(emoji.genericView.tableView)
@@ -531,9 +541,9 @@ public class EntertainmentViewController<Context: AccountContextProtocol>: Teleg
         
         self.genericView.updateSelected(state, mode: mode, animated: false)
         self.updateSectionsBottomInset()
-        self.applyGlassStyle()
+        self.applySurfaceStyle(theme: self.presentation ?? theme)
 
-        
+
         let callSearchCmd:(ESearchCommand, SearchView)->Void = { command, view in
             switch command {
             case .clearText:
@@ -617,7 +627,7 @@ public class EntertainmentViewController<Context: AccountContextProtocol>: Teleg
             self?.chatInteraction?.setIsEmojiSection(state == .emoji)
             self?.genericView.updateSelected(state, mode: mode, animated: true)
             self?.updateSectionsBottomInset()
-            self?.applyGlassStyle()
+            self?.applySurfaceStyle(theme: self?.presentation ?? theme)
         }
 
         self.ready.set(section.ready.get())

@@ -29,7 +29,7 @@ public final class DownloadsControl : Control {
     private let titleView = TextView()
     private let textContainer = View()
     private let nextView = ImageView()
-    private var glassView: LiquidGlassView!
+    private var glassView: LiquidGlassView?
 
     private var state: DownloadsSummary.State = .empty
     private var arguments: DownloadsControlArguments? = nil
@@ -38,13 +38,15 @@ public final class DownloadsControl : Control {
     public required init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
 
-        self.layer?.cornerRadius = frameRect.height / 2
+        if ChatListStyle.current.downloads.floats {
+            self.layer?.cornerRadius = frameRect.height / 2
+            let glass = LiquidGlassView(frame: bounds, cornerRadius: frameRect.height / 2, hasShadow: true, hasBorder: true, tintAlpha: 0.3)
+            self.glassView = glass
+            addSubview(glass)
+            self.stretchReferenceView = glass
+            self.scaleOnClick = true
+        }
 
-        let glass = LiquidGlassView(frame: bounds, cornerRadius: frameRect.height / 2, hasShadow: true, hasBorder: true, tintAlpha: 0.3)
-        self.glassView = glass
-        addSubview(glass)
-        self.stretchReferenceView = glass
-        
         self.layer?.masksToBounds = false
 
         titleView.userInteractionEnabled = false
@@ -59,17 +61,16 @@ public final class DownloadsControl : Control {
 
         addSubview(progressView)
 
-        scaleOnClick = true
-
         updateLocalizationAndTheme(theme: theme)
     }
 
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = theme as! TelegramPresentationTheme
-        self.backgroundColor = .clear
-        self.border = []
-        glassView.customTint = theme.colors.background
+        let floats = ChatListStyle.current.downloads.floats
+        self.backgroundColor = floats ? .clear : theme.colors.background
+        self.border = floats ? [] : [.Top]
+        glassView?.customTint = theme.colors.background
 
         progressView.style = ControlStyle(foregroundColor: theme.colors.accent, backgroundColor: .clear, highlightColor: .clear)
 
@@ -99,10 +100,12 @@ public final class DownloadsControl : Control {
     public override func layout() {
         super.layout()
 
-        glassView.frame = bounds
-        glassView.updateLayout(size: bounds.size, transition: .immediate)
+        if let glassView {
+            glassView.frame = bounds
+            glassView.updateLayout(size: bounds.size, transition: .immediate)
+        }
 
-        let progressInset = frame.height / 2
+        let progressInset = ChatListStyle.current.downloads.floats ? frame.height / 2 : 0
         progressView.frame = NSMakeRect(progressInset, frame.height - progressView.frame.height, frame.width - progressInset * 2, 2)
 
         titleView.resize(frame.width - 20)

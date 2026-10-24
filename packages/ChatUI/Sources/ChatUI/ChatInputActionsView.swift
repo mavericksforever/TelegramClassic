@@ -77,6 +77,7 @@ public class ChatInputActionsView: View, Notifable {
 
     public var scheduled:ImageButton?
     private var secretTimer:ImageButton?
+    private let sidebarVisibilityDisposable = MetaDisposable()
 
     public init(frame frameRect: NSRect, chatInteraction:ChatInteraction) {
         self.chatInteraction = chatInteraction
@@ -227,6 +228,13 @@ public class ChatInputActionsView: View, Notifable {
         self.updateLayout(size: self.frame.size, transition: .immediate)
     }
 
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        sidebarVisibilityDisposable.set((ChatInputUIHooks.shared.entertainmentSidebarVisibility(window) |> deliverOnMainQueue).start(next: { [weak self] visible in
+            self?.entertaiments.isSelected = visible
+        }))
+    }
+
     public func isEqual(to other: Notifable) -> Bool {
         if let other = other as? ChatInputActionsView {
             return self == other
@@ -235,7 +243,7 @@ public class ChatInputActionsView: View, Notifable {
     }
 
     deinit {
-
+        sidebarVisibilityDisposable.dispose()
     }
 
     public func notify(with value: Any, oldValue: Any, animated: Bool) {
@@ -289,7 +297,6 @@ public class ChatInputActionsView: View, Notifable {
                 }
 
                 entertaiments.apply(state: .Normal)
-                entertaiments.isSelected = ChatInputUIHooks.shared.isEntertainmentSidebarVisible(self.window)
 
                 setExtraButton(keyboard, hidden: !value.isKeyboardActive, animated: animated)
                 let inputIsEmpty = value.effectiveInput.inputText.isEmpty

@@ -1,7 +1,7 @@
 import Cocoa
 
 public var navigationButtonStyle: ControlStyle {
-    return ControlStyle(font: .medium(.title), foregroundColor: presentation.colors.text, backgroundColor: .clear, highlightColor: presentation.colors.text.withAlphaComponent(0.9))
+    return InterfaceStyle.current.navigationBar.buttonStyle(presentation.colors)
 }
 
 public enum NavigationBarSwapAnimation {
@@ -14,7 +14,9 @@ public struct NavigationBarStyle {
     /// needs to inset content beneath the nav bar (sticky-scrolling rows,
     /// scroll insets, anchored subviews), it should reference this
     /// constant instead of hard-coding `64`.
-    public static let defaultHeight: CGFloat = 64
+    public static var defaultHeight: CGFloat {
+        return InterfaceStyle.current.navigationBar.height
+    }
 
     public let height:CGFloat
     public let enableBorder:Bool
@@ -34,6 +36,19 @@ public class NavigationBarView: View {
     private var leftView:BarView = BarView(frame: NSZeroRect)
     private var centerView:BarView = BarView(frame: NSZeroRect)
     private var rightView:BarView = BarView(frame: NSZeroRect)
+    private let separator: View = {
+        let view = View()
+        view.isHidden = true
+        return view
+    }()
+
+    public var drawsChrome: Bool = false {
+        didSet {
+            if drawsChrome != oldValue {
+                updateLocalizationAndTheme(theme: presentation)
+            }
+        }
+    }
 
     /// Progressive blur for the navbar lives outside this view — in the
     /// `ControllerContainer.clippingView`, as a sibling of `contentView` and
@@ -61,12 +76,14 @@ public class NavigationBarView: View {
 
     override init() {
         super.init()
+        addSubview(separator)
         updateLocalizationAndTheme(theme: presentation)
         layer?.masksToBounds = false
     }
 
     required public init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
+        addSubview(separator)
         layer?.masksToBounds = false
         updateLocalizationAndTheme(theme: presentation)
     }
@@ -76,7 +93,8 @@ public class NavigationBarView: View {
         self.leftView.updateLocalizationAndTheme(theme: theme)
         self.centerView.updateLocalizationAndTheme(theme: theme)
         self.rightView.updateLocalizationAndTheme(theme: theme)
-        backgroundColor = .clear
+        separator.backgroundColor = theme.colors.border
+        backgroundColor = drawsChrome ? theme.colors.background : .clear
     }
 
     private func ensureSubviewOrder() {
@@ -86,6 +104,7 @@ public class NavigationBarView: View {
         if rightView.superview === self {
             addSubview(rightView, positioned: .above, relativeTo: leftView)
         }
+        addSubview(separator)
     }
     
     required public init?(coder: NSCoder) {
@@ -105,7 +124,7 @@ public class NavigationBarView: View {
     
     override public func layout() {
         super.layout()
-
+        separator.frame = NSMakeRect(0, frame.height - .borderSize, frame.width, .borderSize)
         self.layout(left: leftView, center: centerView, right: rightView, animated: false)
     }
 
@@ -128,8 +147,9 @@ public class NavigationBarView: View {
     }
     
     
-    private static let edgeInset: CGFloat = 12
-    public static let contentTopInset: NSEdgeInsets = NSEdgeInsets(top: 50)
+    public static var contentTopInset: NSEdgeInsets {
+        return NSEdgeInsets(top: InterfaceStyle.current.navigationBar.contentTopInset)
+    }
 
     func layout(left: BarView, center: BarView, right: BarView, force: Bool = false, animated: Bool = false) -> Void {
 
@@ -137,20 +157,26 @@ public class NavigationBarView: View {
 
             let transition: ContainedViewLayoutTransition = animated && !inLiveResize ? .animated(duration: 0.2, curve: .easeOut) : .immediate
 
-            let edge = NavigationBarView.edgeInset
+            let metrics = InterfaceStyle.current.navigationBar
+            let edge = metrics.itemsInset
             let width = max(0, frame.width - startPosition - edge * 2)
 
             let rightWidth = right.fit(to: width / 2, transition: transition)
             let leftWidth = left.fit(to: width / 2, transition: transition)
-            
 
-            transition.updateFrame(view: left, frame: NSMakeRect(startPosition + edge, 0, leftWidth, frame.height))
-            transition.updateFrame(view: center, frame: NSMakeRect(0, 0, frame.width, frame.height))
-            transition.updateFrame(view: right, frame: NSMakeRect(frame.width - rightWidth - edge, 0, rightWidth, frame.height))
+            let leftFrame = NSMakeRect(startPosition + edge, 0, leftWidth, frame.height)
+            let rightFrame = NSMakeRect(frame.width - rightWidth - edge, 0, rightWidth, frame.height)
+            let centerFrame = metrics.centerSpansFullWidth
+                ? NSMakeRect(0, 0, frame.width, frame.height)
+                : NSMakeRect(leftFrame.maxX, 0, max(0, rightFrame.minX - leftFrame.maxX), frame.height)
 
-            left.updateLayout(size: NSMakeSize(leftWidth, frame.height), transition: transition)
-            center.updateLayout(size: NSMakeSize(frame.width, frame.height), transition: transition)
-            right.updateLayout(size: NSMakeSize(rightWidth, frame.height), transition: transition)
+            transition.updateFrame(view: left, frame: leftFrame)
+            transition.updateFrame(view: center, frame: centerFrame)
+            transition.updateFrame(view: right, frame: rightFrame)
+
+            left.updateLayout(size: leftFrame.size, transition: transition)
+            center.updateLayout(size: centerFrame.size, transition: transition)
+            right.updateLayout(size: rightFrame.size, transition: transition)
         }
     }
     
@@ -183,7 +209,9 @@ public class NavigationBarView: View {
         if !liveSwiping {
             layout(left: left, center: center, right: right, animated: false)
         }
-        
+
+        separator.isHidden = !(drawsChrome && controller.bar.enableBorder)
+
         
 //        NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: leftView)
 //        NotificationCenter.default.removeObserver(self, name: NSView.frameDidChangeNotification, object: centerView)

@@ -6,17 +6,32 @@ import TelegramUtils
 
 
 
+private struct SidebarFolderIconColors: InterfaceStyleVariants {
+    let normal: (TelegramPresentationTheme) -> NSColor
+    let active: (TelegramPresentationTheme) -> NSColor
+
+    static let liquidGlass = SidebarFolderIconColors(
+        normal: { $0.colors.text.withAlphaComponent(0.75) },
+        active: { $0.colors.accent }
+    )
+
+    static let classic = SidebarFolderIconColors(
+        normal: { _ in NSColor.white.withAlphaComponent(0.5) },
+        active: { _ in NSColor.white }
+    )
+}
+
 public enum FolderIconState {
     case sidebar
     case sidebarActive
     case preview
     case settings
-    var color: NSColor {
+    public var color: NSColor {
         switch self {
         case .sidebar:
-            return theme.colors.text.withAlphaComponent(0.75)
+            return SidebarFolderIconColors.current.normal(theme)
         case .sidebarActive:
-            return theme.colors.accent
+            return SidebarFolderIconColors.current.active(theme)
         case .preview:
             return theme.colors.grayIcon
         case .settings:

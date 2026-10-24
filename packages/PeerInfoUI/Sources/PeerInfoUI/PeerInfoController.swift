@@ -384,6 +384,7 @@ public final class PeerInfoView<Context: AccountContextProtocol> : View {
     let tableView: TableView
     let navigationBarView = NavigationBarView(frame: .zero)
     private let navBgView = View()
+    private let navBorderView = View()
     private var navigationOverflow: CGFloat = 0
     public required init(frame frameRect: NSRect) {
         tableView = .init(frame: frameRect.size.bounds)
@@ -391,8 +392,9 @@ public final class PeerInfoView<Context: AccountContextProtocol> : View {
         addSubview(tableView)
         addSubview(navBgView)
         addSubview(navigationBarView)
+        addSubview(navBorderView)
         updateEdgeShadowOpacity(0)
-                
+
     }
     
     
@@ -422,26 +424,29 @@ public final class PeerInfoView<Context: AccountContextProtocol> : View {
     
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
+        navBgView.backgroundColor = PeerInfoStyle.current.barBackground(theme.colors)
+        navBorderView.backgroundColor = PeerInfoStyle.current.barBorder(theme.colors)
     }
-    
-    
-    
+
+
+
     public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     public override func layout() {
         super.layout()
         self.updateLayout(size: self.frame.size, transition: .immediate)
     }
-    
+
     public override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
     }
-    
+
     func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        transition.updateFrame(view: navigationBarView, frame: NSMakeRect(0, navigationOverflow, size.width, 64))
+        transition.updateFrame(view: navigationBarView, frame: NSMakeRect(0, navigationOverflow, size.width, NavigationBarStyle.defaultHeight))
         transition.updateFrame(view: navBgView, frame: navigationBarView.frame)
+        transition.updateFrame(view: navBorderView, frame: NSMakeRect(0, navBgView.frame.maxY - .borderSize, size.width, .borderSize))
         transition.updateFrame(view: tableView, frame: NSMakeRect(0, 0, size.width, size.height))
     }
 
@@ -465,6 +470,7 @@ public final class PeerInfoView<Context: AccountContextProtocol> : View {
     
     fileprivate func updateScrollState(_ state: PeerInfoController<Context>.ScrollState, animated: Bool) {
         self.navBgView.change(opacity: state == .pageIn ? 1 : 0, animated: animated)
+        self.navBorderView.change(opacity: state == .pageIn ? 1 : 0, animated: animated)
     }
 
     fileprivate func updateEdgeShadowOpacity(_ opacity: CGFloat) {
@@ -526,6 +532,31 @@ public class PeerInfoController<Context: AccountContextProtocol>: EditableViewCo
             genericView.updateScrollState(state, animated: animated)
         }
     }
+
+    private var revealedScrollState: ScrollState {
+        if nameColor == nil || state != .Normal {
+            return .pageIn
+        }
+        let tableView = genericView.tableView
+        var headerFrame: NSRect?
+        tableView.enumerateItems(with: { item in
+            if let item = item as? PeerInfoHeadItem<Context> {
+                headerFrame = tableView.rectOf(item: item)
+                return false
+            }
+            return true
+        })
+        if let headerFrame, tableView.documentOffset.y + NavigationBarStyle.defaultHeight > headerFrame.maxY {
+            return .pageIn
+        }
+        return .pageUp
+    }
+
+    private func revealNavigationBar(animated: Bool) {
+        if PeerInfoStyle.current.revealsBarOnScroll {
+            updateScrollState(revealedScrollState, animated: animated)
+        }
+    }
     
     public override func requestUpdateBackBar() {
         if let leftBarView = _leftBar as? BackNavigationBar {
@@ -578,7 +609,11 @@ public class PeerInfoController<Context: AccountContextProtocol>: EditableViewCo
     }
     
     public override var barPresentation: ControlStyle {
-        return .init(foregroundColor: theme.colors.text, backgroundColor: .clear, highlightColor: .clear, borderColor: .clear, grayTextColor: theme.colors.grayText, textColor: theme.colors.text)
+        if PeerInfoStyle.current.revealsBarOnScroll, nameColor != nil, threadInfo == nil, state == .Normal, scrollState == .pageUp {
+            let color = PeerInfoHeadItem<Context>.textColor(peer, threadId: nil, context: context)
+            return .init(foregroundColor: color, backgroundColor: .clear, highlightColor: .clear, borderColor: .clear, grayTextColor: theme.colors.grayText, textColor: color)
+        }
+        return .init(foregroundColor: navigationButtonStyle.foregroundColor, backgroundColor: .clear, highlightColor: .clear, borderColor: .clear, grayTextColor: theme.colors.grayText, textColor: theme.colors.text)
     }
     
     public override func swapNavigationBar(leftView: BarView?, centerView: BarView?, rightView: BarView?, animation: NavigationBarSwapAnimation) {
@@ -925,6 +960,9 @@ public class PeerInfoController<Context: AccountContextProtocol>: EditableViewCo
     }
     
     private func updateNavigationGlassTint() {
+        guard InterfaceStyle.current.barButton.usesGlass else {
+            return
+        }
         let genericView = self.genericView
         var header: (frame: NSRect, color: NSColor)?
         genericView.tableView.enumerateItems(with: { item in
@@ -979,12 +1017,13 @@ public class PeerInfoController<Context: AccountContextProtocol>: EditableViewCo
         if nameColor != nil {
             genericView.updateEdgeShadowOpacity(0)
         }
-        
+        revealNavigationBar(animated: false)
 
         genericView.layer?.masksToBounds = false
-        
+
         genericView.tableView.addScroll(listener: TableScrollListener(dispatchWhenVisibleRangeUpdated: false, { [weak self] _ in
             self?.updateNavigationGlassTint()
+            self?.revealNavigationBar(animated: true)
         }))
         
         self.genericView.tableView.hasVerticalScroller = false

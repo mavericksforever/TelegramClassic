@@ -356,7 +356,7 @@ open class SearchView: OverlayControl, NSTextViewDelegate {
     required public init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         self.backgroundColor = .grayBackground
-        self.layer?.cornerRadius = 15
+        self.layer?.cornerRadius = InterfaceStyle.current.searchFieldCornerRadius
         progressIndicator.isHidden = true
 //        progressIndicator.numberOfLines = 8
 //        progressIndicator.innerMargin = 3;

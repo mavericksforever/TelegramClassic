@@ -566,7 +566,7 @@ open class ViewController : NSObject {
     /// Controllers nested inside an already-rounded outer container (e.g. the
     /// borderless GroupCall window) should override this to `0` so the inner
     /// container does not double-clip.
-    open var containerCornerRadius: CGFloat { return 20 }
+    open var containerCornerRadius: CGFloat { return InterfaceStyle.current.controllerCornerRadius }
 
     open var wantsContainerGlass: Bool { return false }
 
@@ -584,7 +584,11 @@ open class ViewController : NSObject {
     open var barIsReal: Bool {
         return false
     }
-    
+
+    var contentIsBelowBar: Bool {
+        return !InterfaceStyle.current.navigationBar.overlaysContent || barIsReal
+    }
+
     open var barPresentation: ControlStyle {
         return navigationButtonStyle
     }
@@ -1310,9 +1314,9 @@ open class ModalViewController : ViewController, ModalControllerHelper {
     }
     
     open var cornerRadius: CGFloat {
-        return 20
+        return InterfaceStyle.current.modal.cornerRadius
     }
-    
+
     open var redirectMouseAfterClosing: Bool {
         return false
     }

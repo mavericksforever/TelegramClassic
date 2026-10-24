@@ -1520,7 +1520,7 @@ public final class AnimatedEmojiesView : Control {
         let searchInsideRect: CGRect = CGRect(origin: CGPoint(x: 0, y: searchContainer.frame.height - 46), size: NSMakeSize(size.width, 46))
         transition.updateFrame(view: searchInside, frame: searchInsideRect)
         transition.updateFrame(view: visualEffect, frame: searchInsideRect)
-        transition.updateFrame(view: searchStatusView, frame: NSMakeRect(0, searchContainer.frame.maxY, size.width, max(0, size.height - searchContainer.frame.maxY - 56)))
+        transition.updateFrame(view: searchStatusView, frame: NSMakeRect(0, searchContainer.frame.maxY, size.width, max(0, size.height - searchContainer.frame.maxY - EntertainmentStyle.current.contentBottomInset)))
 
         
         
@@ -2024,7 +2024,7 @@ public final class EmojiesController<Context: AccountContextProtocol> : Telegram
     public var isGlass: Bool = false {
         didSet {
             if isLoaded() {
-                genericView.isGlass = isGlass
+                genericView.isGlass = drawsGlass
             }
         }
     }
@@ -2032,13 +2032,21 @@ public final class EmojiesController<Context: AccountContextProtocol> : Telegram
     public var showsGlassSurface: Bool = false {
         didSet {
             if isLoaded() {
-                genericView.showsGlassSurface = showsGlassSurface
+                genericView.showsGlassSurface = drawsGlassSurface
             }
         }
     }
 
+    private var drawsGlass: Bool {
+        return isGlass && EntertainmentStyle.current.usesGlass
+    }
+
+    private var drawsGlassSurface: Bool {
+        return showsGlassSurface && EntertainmentStyle.current.usesGlass
+    }
+
     public override var popoverBackgroundColor: NSColor {
-        return showsGlassSurface ? .clear : super.popoverBackgroundColor
+        return drawsGlassSurface ? .clear : super.popoverBackgroundColor
     }
     private let searchValue = ValuePromise<SearchState>(.init(state: .None, request: nil))
     private var searchState: SearchState = .init(state: .None, request: nil) {
@@ -2196,8 +2204,8 @@ public final class EmojiesController<Context: AccountContextProtocol> : Telegram
         onStage.set(true)
         
         genericView.presentation = self.presentation
-        genericView.isGlass = isGlass || showsGlassSurface
-        genericView.showsGlassSurface = showsGlassSurface
+        genericView.isGlass = drawsGlass || drawsGlassSurface
+        genericView.showsGlassSurface = drawsGlassSurface
         genericView.packsView.delegate = self
         
        

@@ -12,6 +12,7 @@
  import ChatModeTypes
  import ChatUI
  import GeneralRows
+ import InlineMediaGrid
   import InputDataUI
  import LocalAnimations
  import Localization
@@ -36,7 +37,7 @@
         addSubview(searchView)
         addSubview(close)
         close.setAccessibilityLabel(strings().voiceOverCommonClose)
-        layer?.cornerRadius = PeerMediaTabsView.height / 2
+        layer?.cornerRadius = PeerInfoStyle.current.media.searchCornerRadius
         updateLocalizationAndTheme(theme: theme)
     }
     
@@ -70,11 +71,13 @@
     case rightToLeft
     case interactive
  }
- private let sectionOffset: CGFloat = 0
+ private var sectionOffset: CGFloat {
+    return PeerInfoStyle.current.media.topSpacing
+ }
  
  public final class PeerMediaContainerView : View {
     
-    private let actionsPanelView:MessageActionsPanelView = MessageActionsPanelView(frame: NSMakeRect(0,0,0, 50))
+    private let actionsPanelView: MessageActionsPanel = makeMessageActionsPanel(frame: NSMakeRect(0,0,0, 50))
     
     fileprivate let view: PeerMediaControllerView
     fileprivate var emptyView: PeerMediaEmptyRowView?
@@ -118,7 +121,7 @@
      }
 
     private static func blockWidth(_ width: CGFloat) -> CGFloat {
-        return min(600, width - 40)
+        return MediaGridStyle.current.fillsWidth ? width : min(600, width - 40)
     }
 
     public override func layout() {
@@ -235,12 +238,15 @@
  
  class PeerMediaControllerView : View {
     
-    private static let tabsTopInset: CGFloat = 12
-    private static let tabsBottomInset: CGFloat = 12
-    private static var topPanelHeight: CGFloat {
-        return tabsTopInset + PeerMediaTabsView.height + tabsBottomInset
+    private static var mediaStyle: PeerInfoStyle.Media {
+        return PeerInfoStyle.current.media
     }
-    private static let contentCornerRadius: CGFloat = 20
+    private static var topPanelHeight: CGFloat {
+        return mediaStyle.panelInset * 2 + PeerMediaTabsView.height
+    }
+    private static var contentCornerRadius: CGFloat {
+        return mediaStyle.contentCornerRadius
+    }
     private static let headerEdgeExtension: CGFloat = 68
     private static let headerEdgeFadeHeight: CGFloat = 60
     
@@ -297,6 +303,7 @@
         addSubview(contentView)
         addSubview(headerEdgeView)
         topPanelView.layer?.masksToBounds = false
+        topPanelView.border = PeerMediaControllerView.mediaStyle.panelBorder
         topPanelView.isEventLess = true
         addSubview(topPanelView)
         topPanelView.isHidden = isSegmentHidden
@@ -308,13 +315,15 @@
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         backgroundColor = theme.colors.listBackground
         headerUnderlayView.backgroundColor = theme.colors.listBackground
+        topPanelView.backgroundColor = PeerMediaControllerView.mediaStyle.panelBackground(theme.colors)
+        topPanelView.borderColor = theme.colors.border
         tabsView.updateLocalizationAndTheme(theme: theme)
         searchPanelView?.updateLocalizationAndTheme(theme: theme)
         updateHeaderEdge()
     }
 
     private func updateHeaderEdge() {
-        guard let headerOverflow = headerOverflow else {
+        guard PeerMediaControllerView.mediaStyle.fadesPinnedHeader, let headerOverflow = headerOverflow else {
             headerEdgeView.isHidden = true
             return
         }
@@ -386,7 +395,7 @@
     
     private var tabsFrame: NSRect {
         let size = tabsView.size(fitting: frame.width)
-        return NSMakeRect(floorToScreenPixels(backingScaleFactor, (frame.width - size.width) / 2), PeerMediaControllerView.tabsTopInset, size.width, size.height)
+        return NSMakeRect(floorToScreenPixels(backingScaleFactor, (frame.width - size.width) / 2), PeerMediaControllerView.mediaStyle.panelInset, size.width, size.height)
     }
     
     fileprivate func updateTabs(_ tabs: [PeerMediaTabsView.Tab], selected: Int64?, account: Account, animated: Bool) {
@@ -651,7 +660,7 @@
     }
     
     private var searchPanelFrame: NSRect {
-        return NSMakeRect(0, PeerMediaControllerView.tabsTopInset, frame.width, PeerMediaTabsView.height)
+        return NSMakeRect(0, PeerMediaControllerView.mediaStyle.panelInset, frame.width, PeerMediaTabsView.height)
     }
     
     override func layout() {

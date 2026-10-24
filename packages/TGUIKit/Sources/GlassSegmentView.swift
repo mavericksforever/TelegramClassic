@@ -2,11 +2,9 @@ import Cocoa
 
 public final class GlassSegmentView: View {
     public static let height: CGFloat = 40
-    private static let itemInset: CGFloat = 12
-    private static let itemOverlap: CGFloat = 8
-    private static let selectionInset: CGFloat = 3
 
-    private let glass = LiquidGlassView(frame: NSZeroRect, cornerRadius: GlassSegmentView.height / 2, hasShadow: true, hasBorder: true)
+    private let style = InterfaceStyle.current.segment
+    private lazy var glass: LiquidGlassView? = style.usesGlass ? LiquidGlassView(frame: NSZeroRect, cornerRadius: GlassSegmentView.height / 2, hasShadow: true, hasBorder: true) : nil
     private let selectionView = View()
     private var labels: [TextView] = []
     private var currentTheme: PresentationTheme = presentation
@@ -19,9 +17,10 @@ public final class GlassSegmentView: View {
     public required init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         self.layer?.masksToBounds = false
-        self.addSubview(self.glass)
+        if let glass {
+            self.addSubview(glass)
+        }
         self.selectionView.isHidden = true
-        self.selectionView.layer?.cornerRadius = (GlassSegmentView.height - GlassSegmentView.selectionInset * 2) / 2
         self.addSubview(self.selectionView)
     }
 
@@ -34,6 +33,7 @@ public final class GlassSegmentView: View {
     }
 
     public func set(titles: [String], selected index: Int?, animated: Bool) {
+        let contentChanged = self.titles != titles || self.selectedIndex != index
         if self.titles != titles {
             self.titles = titles
             while labels.count > titles.count {
@@ -46,9 +46,11 @@ public final class GlassSegmentView: View {
                 addSubview(label)
                 labels.append(label)
             }
-            applyTheme()
         }
         self.selectedIndex = index
+        if contentChanged {
+            applyTheme()
+        }
         self.selectionPosition = index.flatMap { CGFloat($0) }
         updateLayout(size: frame.size, transition: animated ? .animated(duration: 0.4, curve: .spring) : .immediate)
     }
@@ -70,9 +72,9 @@ public final class GlassSegmentView: View {
 
     private func applyTheme() {
         let colors = currentTheme.colors
-        selectionView.backgroundColor = colors.text.withAlphaComponent(colors.isDark ? 0.1 : 0.075)
-        for (label, title) in zip(labels, titles) {
-            let layout = TextViewLayout(.initialize(string: title, color: colors.text, font: .medium(.title)))
+        selectionView.backgroundColor = style.selectionColor(colors)
+        for (index, (label, title)) in zip(labels, titles).enumerated() {
+            let layout = TextViewLayout(.initialize(string: title, color: style.textColor(colors, index == selectedIndex), font: .medium(.title)))
             layout.measure(width: .greatestFiniteMagnitude)
             label.update(layout)
         }
@@ -81,8 +83,8 @@ public final class GlassSegmentView: View {
     private var itemFrames: [NSRect] {
         var x: CGFloat = 0
         return labels.map { label in
-            let frame = NSMakeRect(x, 0, label.frame.width + GlassSegmentView.itemInset * 2, GlassSegmentView.height)
-            x = frame.maxX - GlassSegmentView.itemOverlap
+            let frame = NSMakeRect(x, 0, label.frame.width + style.itemInset * 2, GlassSegmentView.height)
+            x = frame.maxX + style.itemSpacing
             return frame
         }
     }
@@ -94,8 +96,13 @@ public final class GlassSegmentView: View {
         let progress = clamped - CGFloat(lower)
         let minX = frames[lower].minX + (frames[upper].minX - frames[lower].minX) * progress
         let width = frames[lower].width + (frames[upper].width - frames[lower].width) * progress
-        let inset = GlassSegmentView.selectionInset
-        return NSMakeRect(minX + inset, inset, max(0, width - inset * 2), GlassSegmentView.height - inset * 2)
+        switch style.selection {
+        case let .insetFromItem(inset):
+            return NSMakeRect(minX + inset, inset, max(0, width - inset * 2), GlassSegmentView.height - inset * 2)
+        case let .aroundText(verticalPadding):
+            let height = ceil(labels[lower].frame.height) + verticalPadding * 2
+            return NSMakeRect(minX, floorToScreenPixels((GlassSegmentView.height - height) / 2), width, height)
+        }
     }
 
     private func position(forCenterX x: CGFloat, frames: [NSRect]) -> CGFloat {
@@ -153,8 +160,10 @@ public final class GlassSegmentView: View {
     }
 
     private func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
-        transition.updateFrame(view: glass, frame: size.bounds)
-        glass.updateLayout(size: size, transition: transition)
+        if let glass {
+            transition.updateFrame(view: glass, frame: size.bounds)
+            glass.updateLayout(size: size, transition: transition)
+        }
 
         let frames = itemFrames
         for (label, itemFrame) in zip(labels, frames) {
@@ -164,8 +173,10 @@ public final class GlassSegmentView: View {
 
         if let position = selectionPosition, !frames.isEmpty {
             let selectionTransition: ContainedViewLayoutTransition = selectionView.isHidden ? .immediate : transition
+            let selectionFrame = self.selectionFrame(at: position, frames: frames)
             selectionView.isHidden = false
-            selectionTransition.updateFrame(view: selectionView, frame: selectionFrame(at: position, frames: frames))
+            selectionView.layer?.cornerRadius = selectionFrame.height / 2
+            selectionTransition.updateFrame(view: selectionView, frame: selectionFrame)
         } else {
             selectionView.isHidden = true
         }

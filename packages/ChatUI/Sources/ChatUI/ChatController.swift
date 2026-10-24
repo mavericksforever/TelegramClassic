@@ -270,7 +270,7 @@ public class ChatControllerView : View, ChatInputDelegate {
     
     public let inputView:ChatInputView
     let inputContextHelper:InputContextHelper
-    let bubblesView: ChatHeaderBubblesView
+    let bubblesView: ChatHeaderBubblesView?
     private(set) var state:ChatControllerViewState = .visible
     private var searchInteractions:ChatSearchInteractions!
     private let scroller:ChatNavigationScroller
@@ -303,7 +303,7 @@ public class ChatControllerView : View, ChatInputDelegate {
     var chatTheme: TelegramPresentationTheme? {
         didSet {
             if chatTheme != oldValue {
-                updateLocalizationAndTheme(theme: chatTheme ?? theme)
+                updateLocalizationAndTheme(theme: ChatStyle.current.chromeTheme(chatTheme: chatTheme, appTheme: theme))
             }
         }
     }
@@ -313,8 +313,8 @@ public class ChatControllerView : View, ChatInputDelegate {
     let floatingPhotosView: FlippableView = FlippableView()
     
     private let gradientMaskView = BackgroundGradientView(frame: NSZeroRect)
-    private let inputShadowView = EdgeEffectView()
-    private let bubbleShadowView = EdgeEffectView()
+    private let inputShadowView: EdgeEffectView? = ChatStyle.current.fadesContentUnderChrome ? EdgeEffectView() : nil
+    private let bubbleShadowView: EdgeEffectView? = ChatStyle.current.fadesContentUnderChrome ? EdgeEffectView() : nil
 
     struct EdgeBlur: OptionSet {
         let rawValue: Int
@@ -447,16 +447,15 @@ public class ChatControllerView : View, ChatInputDelegate {
         return found
     }
     
-    public required init(frame frameRect: NSRect, chatInteraction:ChatInteraction) {
+    required init(frame frameRect: NSRect, chatInteraction:ChatInteraction, bubblesView: ChatHeaderBubblesView?) {
         self.chatInteraction = chatInteraction
+        self.bubblesView = bubblesView
         header = ChatHeaderController(chatInteraction)
 
 
         scroller = ChatNavigationScroller(.scroller)
         inputContextHelper = InputContextHelper(chatInteraction: chatInteraction)
         tableView = TableView(frame:NSMakeRect(0,0,frameRect.width,frameRect.height - 50), isFlipped:false)
-
-        bubblesView = ChatHeaderBubblesView(frame: NSMakeRect(0, 0, frameRect.width, ChatHeaderBubblesView.totalHeight), chatInteraction: chatInteraction)
 
         inputView = ChatInputView(frame: NSMakeRect(0,tableView.frame.maxY, frameRect.width,50), chatInteraction: chatInteraction)
         //inputView.autoresizingMask = [.width]
@@ -480,14 +479,16 @@ public class ChatControllerView : View, ChatInputDelegate {
         
 //        floatingPhotosView.backgroundColor = .random
         
-        inputShadowView.isEventLess = true
-        bubbleShadowView.isEventLess = true
-        addSubview(inputShadowView)
-        addSubview(bubbleShadowView)
+        for shadowView in [inputShadowView, bubbleShadowView].compactMap({ $0 }) {
+            shadowView.isEventLess = true
+            addSubview(shadowView)
+        }
 
         addSubview(inputView)
-        addSubview(bubblesView)
-        header.sharedGlassWrapper = bubblesView.sharedGlassWrapper
+        if let bubblesView {
+            addSubview(bubblesView)
+        }
+        header.sharedGlassWrapper = bubblesView?.sharedGlassWrapper
         inputView.delegate = self
         self.autoresizesSubviews = false
         tableView.autoresizingMask = []
@@ -968,6 +969,14 @@ public class ChatControllerView : View, ChatInputDelegate {
     private var navigationOverflow: CGFloat = 0
     private var hasLayout: Bool = false
 
+    private var topChromeHeight: CGFloat {
+        return bubblesView == nil ? 0 : ChatHeaderBubblesView.totalHeight
+    }
+
+    private var topChromeMaxY: CGFloat {
+        return navigationOverflow + topChromeHeight
+    }
+
     func updateNavigationOverflow(_ overflow: CGFloat, transition: ContainedViewLayoutTransition) {
         guard navigationOverflow != overflow else {
             return
@@ -991,24 +1000,26 @@ public class ChatControllerView : View, ChatInputDelegate {
         let headerInset: NSPoint = NSMakePoint(0, 0)
         
 
-        let bubbleBarHeight: CGFloat = ChatHeaderBubblesView.totalHeight
-
-        bubblesView.extendedContentHeight = header.state.height
-        let bubblesFrame = NSMakeRect(headerInset.x, navigationOverflow, frame.width - headerInset.x, bubbleBarHeight)
-        transition.updateFrame(view: bubblesView, frame: bubblesFrame)
-        bubblesView.updateLayout(size: bubblesFrame.size, transition: transition)
+        if let bubblesView {
+            bubblesView.extendedContentHeight = header.state.height
+            let bubblesFrame = NSMakeRect(headerInset.x, navigationOverflow, frame.width - headerInset.x, topChromeHeight)
+            transition.updateFrame(view: bubblesView, frame: bubblesFrame)
+            bubblesView.updateLayout(size: bubblesFrame.size, transition: transition)
+        }
 
         let edgeBg = edgeEffectColor()
-        let bubbleShadowExtra: CGFloat = 24
-        let bubbleShadowTopExtend: CGFloat = max(100, inset)
-        let bubbleShadowBottom = navigationOverflow + bubbleBarHeight + header.state.height + bubbleShadowExtra
         let shadowX: CGFloat = -self.frame.minX
         let shadowWidth: CGFloat = (superview?.frame.width).map { max($0, self.frame.width) } ?? self.frame.width
-        let bubbleShadowRect = NSMakeRect(shadowX, -bubbleShadowTopExtend, shadowWidth, bubbleShadowBottom + bubbleShadowTopExtend)
-        let listTopInset = navigationOverflow + bubbleBarHeight + header.state.height
-        let bubbleBlur = EdgeEffectView.Blur(rect: NSMakeRect(shadowX, bubbleShadowRect.minY, shadowWidth, listTopInset + 10 - bubbleShadowRect.minY), edgeSize: 80)
-        transition.updateFrame(view: bubbleShadowView, frame: bubbleShadowRect)
-        bubbleShadowView.update(color: edgeBg, blur: ChatControllerView.edgeBlur.contains(.top) ? bubbleBlur : nil, alpha: 0.6, edge: .bottom, edgeSize: min(60, bubbleShadowRect.height), rect: bubbleShadowRect, transition: transition)
+        if let bubbleShadowView {
+            let bubbleShadowExtra: CGFloat = 24
+            let bubbleShadowTopExtend: CGFloat = max(100, inset)
+            let bubbleShadowBottom = topChromeMaxY + header.state.height + bubbleShadowExtra
+            let bubbleShadowRect = NSMakeRect(shadowX, -bubbleShadowTopExtend, shadowWidth, bubbleShadowBottom + bubbleShadowTopExtend)
+            let listTopInset = topChromeMaxY + header.state.height
+            let bubbleBlur = EdgeEffectView.Blur(rect: NSMakeRect(shadowX, bubbleShadowRect.minY, shadowWidth, listTopInset + 10 - bubbleShadowRect.minY), edgeSize: 80)
+            transition.updateFrame(view: bubbleShadowView, frame: bubbleShadowRect)
+            bubbleShadowView.update(color: edgeBg, blur: ChatControllerView.edgeBlur.contains(.top) ? bubbleBlur : nil, alpha: 0.6, edge: .bottom, edgeSize: min(60, bubbleShadowRect.height), rect: bubbleShadowRect, transition: transition)
+        }
 
 
         if let view = inputContextHelper.accessoryView {
@@ -1017,15 +1028,15 @@ public class ChatControllerView : View, ChatInputDelegate {
             transition.updateFrame(view: view, frame: NSMakeRect(textContainer.minX, textContainer.minY - view.frame.height - gap, textContainer.width, view.frame.height))
         }
         if let currentView = header.currentView {
-            let headerEdge: CGFloat = 12
+            let headerEdge = ChatStyle.current.header.inset
             var inset: CGFloat = 0
             if let monoforum_VerticalView {
-                inset += 12 + monoforum_VerticalView.frame.width
+                inset += headerEdge + monoforum_VerticalView.frame.width
             }
-            
+
             header.measure(frame.width - inset - headerEdge * 2)
 
-            transition.updateFrame(view: currentView, frame: NSMakeRect(inset + headerEdge, bubblesView.frame.maxY, frame.width - inset - headerEdge * 2, header.state.height))
+            transition.updateFrame(view: currentView, frame: NSMakeRect(inset + headerEdge, topChromeMaxY, frame.width - inset - headerEdge * 2, header.state.height))
             header.updateLayout(size: currentView.frame.size, transition: transition)
         }
         
@@ -1053,18 +1064,20 @@ public class ChatControllerView : View, ChatInputDelegate {
         }
 
         
-        let inputShadowExtra: CGFloat = 24
-        let inputShadowMinY = max(0, inputView.frame.minY - inputShadowExtra)
-        let inputShadowHeight: CGFloat = max(frame.height + 200, 600)
-        let inputShadowRect = NSMakeRect(shadowX, inputShadowMinY, shadowWidth, inputShadowHeight)
+        if let inputShadowView {
+            let inputShadowExtra: CGFloat = 24
+            let inputShadowMinY = max(0, inputView.frame.minY - inputShadowExtra)
+            let inputShadowHeight: CGFloat = max(frame.height + 200, 600)
+            let inputShadowRect = NSMakeRect(shadowX, inputShadowMinY, shadowWidth, inputShadowHeight)
 
-        transition.updateFrame(view: inputShadowView, frame: inputShadowRect)
-        let inputShadowHorizontalFade: CGFloat = inputShadowRect.width > 0 ? min(0.5, 60 / inputShadowRect.width) : 0
-        let inputPillTop = inputRect.maxY - inputHeight
-        let inputBlurBottom = max(frame.height, inputPillTop)
-        let inputBlurHeight = max(60, inputBlurBottom - (inputPillTop + 4))
-        let inputBlur = EdgeEffectView.Blur(rect: NSMakeRect(shadowX, inputBlurBottom - inputBlurHeight, shadowWidth, inputBlurHeight), edgeSize: 60)
-        inputShadowView.update(color: edgeBg, blur: ChatControllerView.edgeBlur.contains(.bottom) ? inputBlur : nil, alpha: 0.6, edge: .top, edgeSize: 60, rect: inputShadowRect, transition: transition, horizontalFade: inputShadowHorizontalFade)
+            transition.updateFrame(view: inputShadowView, frame: inputShadowRect)
+            let inputShadowHorizontalFade: CGFloat = inputShadowRect.width > 0 ? min(0.5, 60 / inputShadowRect.width) : 0
+            let inputPillTop = inputRect.maxY - inputHeight
+            let inputBlurBottom = max(frame.height, inputPillTop)
+            let inputBlurHeight = max(60, inputBlurBottom - (inputPillTop + 4))
+            let inputBlur = EdgeEffectView.Blur(rect: NSMakeRect(shadowX, inputBlurBottom - inputBlurHeight, shadowWidth, inputBlurHeight), edgeSize: 60)
+            inputShadowView.update(color: edgeBg, blur: ChatControllerView.edgeBlur.contains(.bottom) ? inputBlur : nil, alpha: 0.6, edge: .top, edgeSize: 60, rect: inputShadowRect, transition: transition, horizontalFade: inputShadowHorizontalFade)
+        }
         
 
         if let backgroundView = backgroundView {
@@ -1112,18 +1125,18 @@ public class ChatControllerView : View, ChatInputDelegate {
         }
         
         if let starUndoView {
-            transition.updateFrame(view: starUndoView, frame: starUndoView.centerFrameX(y: navigationOverflow + bubbleBarHeight + header.state.height + 10))
+            transition.updateFrame(view: starUndoView, frame: starUndoView.centerFrameX(y: topChromeMaxY + header.state.height + 10))
         }
 
         if let videoProccesing {
-            transition.updateFrame(view: videoProccesing, frame: videoProccesing.centerFrameX(y: navigationOverflow + bubbleBarHeight + header.state.height + 10))
+            transition.updateFrame(view: videoProccesing, frame: videoProccesing.centerFrameX(y: topChromeMaxY + header.state.height + 10))
         }
-        
+
         if let monoforum_VerticalView {
-            let vTop = bubblesView.frame.maxY
+            let vTop = topChromeMaxY
             let vBottom = inputView.frame.minY - 10
             let vHeight = max(0, vBottom - vTop)
-            transition.updateFrame(view: monoforum_VerticalView, frame: NSMakeRect(12, vTop, monoforum_VerticalView.frame.width, vHeight))
+            transition.updateFrame(view: monoforum_VerticalView, frame: NSMakeRect(ChatStyle.current.header.inset, vTop, monoforum_VerticalView.frame.width, vHeight))
             monoforum_VerticalView.updateLayout(size: monoforum_VerticalView.frame.size, transition: transition)
         }
         
@@ -1322,21 +1335,22 @@ public class ChatControllerView : View, ChatInputDelegate {
              
         let state: ChatHeaderState = .init(main: value, voiceChat: voiceChat, translate: translate, botManager: interfaceState.chatMode == .preview ? nil : interfaceState.connectedBot, botAd: botAd.flatMap { .init(message: $0, chatInteraction: chatInteraction) }, monoforumHorizontal: interfaceState.monoforumState == .horizontal ? monoforumHorizontalData : nil)
 
-        state.measure(frame.width - (interfaceState.monoforumState == .vertical ? 92 : 0) - 24)
+        let headerInset = ChatStyle.current.header.inset
+        let monoforumInset: CGFloat = interfaceState.monoforumState == .vertical ? MonoforumVerticalView.width + headerInset : 0
 
-        header.updateState(state, animated: animated, for: self, inset: interfaceState.monoforumState == .vertical ? 92 : 0, relativeView: header.monoforumView)
+        state.measure(frame.width - monoforumInset - headerInset * 2)
 
-        let bubbleBarHeight = ChatHeaderBubblesView.totalHeight
+        header.updateState(state, animated: animated, for: self, top: topChromeHeight, inset: monoforumInset, relativeView: header.monoforumView)
 
-        tableView.updateStickInset(bubbleBarHeight + state.height - state.toleranceHeight + 10, animated: animated)
+        tableView.updateStickInset(topChromeHeight + state.height - state.toleranceHeight + 10, animated: animated)
 
         if superview != nil {
             updateFrame(frame, transition: animated ? .animated(duration: 0.2, curve: .easeOut) : .immediate)
         }
         if let count = interfaceState.historyCount, count > 0 {
-            tableView.contentInsets = .init(top: bubbleBarHeight + state.height)
+            tableView.contentInsets = .init(top: topChromeHeight + state.height)
         } else {
-            tableView.contentInsets = .init(top: bubbleBarHeight)
+            tableView.contentInsets = .init(top: topChromeHeight)
         }
     }
     
@@ -1359,8 +1373,8 @@ public class ChatControllerView : View, ChatInputDelegate {
                 if let view = self.monoforum_VerticalView {
                     current = view
                 } else {
-                    let y = bubblesView.frame.maxY
-                    current = MonoforumVerticalView(frame: NSMakeRect(0, y, 80, tableRect.height - y))
+                    let y = topChromeMaxY
+                    current = MonoforumVerticalView(frame: NSMakeRect(0, y, MonoforumVerticalView.width, tableRect.height - y))
                     addSubview(current, positioned: .below, relativeTo: inputView)
                     self.monoforum_VerticalView = current
 
@@ -1573,10 +1587,10 @@ public class ChatControllerView : View, ChatInputDelegate {
         }
         progressView?.progressColor = chatTheme.chatServiceItemTextColor
         scroller.updateLocalizationAndTheme(theme: chatTheme)
-        header.updateLocalizationAndTheme(theme: chatTheme)
+        header.updateLocalizationAndTheme(theme: ChatStyle.current.chromeTheme(chatTheme: self.chatTheme, appTheme: theme))
 
-        bubblesView.updateLocalizationAndTheme(theme: chatTheme)
-        bubblesView.updatePresentation(chatInteraction.presentation, force: true)
+        bubblesView?.updateLocalizationAndTheme(theme: chatTheme)
+        bubblesView?.updatePresentation(chatInteraction.presentation, force: true)
     }
 
 
@@ -1609,8 +1623,8 @@ public class ChatControllerView : View, ChatInputDelegate {
         }, undo: {
             context.engine.messages.cancelPendingSendStarsReaction(id: messageId)
         })
-        
-        let rect = self.frame.focusX(size, y: ChatHeaderBubblesView.totalHeight + header.state.height + 10)
+
+        let rect = self.frame.focusX(size, y: topChromeHeight + header.state.height + 10)
         let transition: ContainedViewLayoutTransition = animated ? .animated(duration: 0.2, curve: .easeOut) : .immediate
         transition.updateFrame(view: current, frame: rect)
 
@@ -1641,8 +1655,8 @@ public class ChatControllerView : View, ChatInputDelegate {
                 self?.videoProccesing = nil
             }
         })
-        
-        let rect = self.frame.focusX(size, y: ChatHeaderBubblesView.totalHeight + header.state.height + 10)
+
+        let rect = self.frame.focusX(size, y: topChromeHeight + header.state.height + 10)
         let transition: ContainedViewLayoutTransition = animated ? .animated(duration: 0.2, curve: .easeOut) : .immediate
         transition.updateFrame(view: current, frame: rect)
         
@@ -1659,7 +1673,7 @@ public class ChatControllerView : View, ChatInputDelegate {
         guard let view = toasterView else { return .zero }
         let maxWidth = max(80, frame.width - 24)
         let size = view.contentSize(maxWidth: maxWidth)
-        let y = ChatHeaderBubblesView.totalHeight + header.state.height
+        let y = topChromeHeight + header.state.height
         return frame.focusX(size, y: y)
     }
 
@@ -1677,7 +1691,7 @@ public class ChatControllerView : View, ChatInputDelegate {
         let maxWidth = max(80, frame.width - 24)
         view.update(text: text, maxWidth: maxWidth)
         let size = view.contentSize(maxWidth: maxWidth)
-        let y = ChatHeaderBubblesView.totalHeight + header.state.height + 8
+        let y = topChromeHeight + header.state.height + 8
         view.frame = frame.focusX(size, y: y)
         self.toasterView = view
 
@@ -3043,9 +3057,9 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             guard let self else { return }
             let inputOverlayHeight = self.mode == .preview
                 ? previewChatBottomInset
-                : max(0, rawInputHeight - ChatInputView.inputBottomInset) + self.genericView.transcriptionInset
+                : max(0, rawInputHeight - ChatStyle.current.input.transparentBottomInset) + self.genericView.transcriptionInset
             let previous = self.chatInteraction.inputOverlayHeight.swap(inputOverlayHeight)
-            if ChatHistoryBottomRowItem.height(for: previous) == ChatHistoryBottomRowItem.height(for: inputOverlayHeight) {
+            if ChatHistoryBottomRowItem.overlayHeight(for: previous) == ChatHistoryBottomRowItem.overlayHeight(for: inputOverlayHeight) {
                 return
             }
             let table = self.genericView.tableView
@@ -3068,28 +3082,28 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
 
         }
 
-        genericView.bubblesView.backHandler = { [weak self] in
+        topChrome.backHandler = { [weak self] in
             if self?.mode == .preview {
                 self?.navigationController?.modal?.close()
             } else {
                 self?.navigationController?.back()
             }
         }
-        genericView.bubblesView.avatarHandler = { [weak self] in
+        topChrome.avatarHandler = { [weak self] in
             self?.openPhotoFromHeader()
         }
-        genericView.bubblesView.avatarAccessibilityActionName = { [weak self] in
+        topChrome.avatarAccessibilityActionName = { [weak self] in
             return self?.headerPhotoAccessibilityActionName
         }
-        genericView.bubblesView.titleHandler = { [weak self] in
+        topChrome.titleHandler = { [weak self] in
             self?.openPeerInfoFromHeader()
         }
-        genericView.bubblesView.searchHandler = { [weak self] in
+        topChrome.searchHandler = { [weak self] in
             self?.chatInteraction.update { current in
                 current.updatedSearchMode(.init(inSearch: !current.searchMode.inSearch))
             }
         }
-        genericView.bubblesView.callHandler = { [weak self] in
+        topChrome.callHandler = { [weak self] in
             guard let self else { return }
             if let groupCall = self.chatInteraction.presentation.groupCall {
                 self.chatInteraction.joinGroupCall(groupCall.activeCall, groupCall.joinHash)
@@ -3097,10 +3111,10 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
                 self.chatInteraction.call()
             }
         }
-        genericView.bubblesView.doneHandler = { [weak self] in
+        topChrome.doneHandler = { [weak self] in
             self?.changeState()
         }
-        genericView.bubblesView.menuContextMenu = { [weak self] in
+        topChrome.menuContextMenu = { [weak self] in
             return self?.buildChatActionsMenu()
         }
         
@@ -3382,7 +3396,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
                 }
                 DispatchQueue.main.async {
                     self?.genericView.tableView.reloadData()
-                    self?.updateBubblesBackButton()
+                    self?.updateTopChromeBackButton()
                 }
             }
         }))
@@ -4481,7 +4495,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             })
             self?.chatInteraction.saveState(scrollState: self?.immediateScrollState())
             if !context.isLite(.animations) {
-                self?.context.bindings.doGlobalBackgroundAction()
+                self?.genericView.backgroundView?.doAction()
             }
         }
         
@@ -5238,7 +5252,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         }
         chatInteraction.voiceSendFlight = ChatVoiceSendFlight(tableView: genericView.tableView)
         chatInteraction.voiceTranscription = ChatVoiceTranscription(chatInteraction: chatInteraction, host: genericView)
-        self.textSendFlight = ChatTextSendFlight(view: genericView)
+        self.textSendFlight = ChatStyle.current.input.morphsSentTextFromField ? ChatTextSendFlight(view: genericView) : nil
         chatInteraction.mediaSendFlight = ChatMediaSendFlight(view: genericView, canLaunch: { [weak self] in
             guard let self else {
                 return false
@@ -8344,7 +8358,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         }
         
         titleUpdateDisposable.set((peerView.get() |> take(1) |> deliverOnMainQueue).start(next: { [weak self] postboxView in
-            self?.genericView.bubblesView.update(postboxView as? PeerView, story: nil, counters: .init(), animated: false)
+            self?.topChrome.update(postboxView as? PeerView, story: nil, counters: .init(), animated: false)
         }))
         
         let updaterPromise: Promise<Any> = Promise(Void())
@@ -8417,7 +8431,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             let animated = !firstTime
                         
             guard let `self` = self else {return}
-            self.genericView.bubblesView.update(titlePeerView, story: uiState.storyState, counters: uiState.answersAndOnline, animated: animated)
+            self.topChrome.update(titlePeerView, story: uiState.storyState, counters: uiState.answersAndOnline, animated: animated)
             let peerView = postboxView as? PeerView
             self.currentPeerView = peerView
             if firstTime, let peerView, let cachedData = peerView.cachedData as? CachedChannelData, cachedData.isNotAccessible {
@@ -8702,7 +8716,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
                 break
             }
             
-            self?.genericView.bubblesView.connectionStatus = status
+            self?.topChrome.connectionStatus = status
         }
         
         let combine = combineLatest(queue: .mainQueue(), _historyReady.get() |> take(1), appearanceReady.get(), peerView.get() |> take(1) |> map { _ in } |> then(initialData), genericView.inputView.ready.get() |> take(1), _monoforumReady.get() |> take(1))
@@ -8804,8 +8818,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             }
             |> deliverOnMainQueue).start(next: { [weak self] activities in
                 if let strongSelf = self, strongSelf.chatInteraction.peerId != strongSelf.context.peerId {
-                    (strongSelf.centerBarView as? ChatTitleBarView)?.inputActivities = (strongSelf.chatInteraction.peerId, activities)
-                    strongSelf.genericView.bubblesView.inputActivities = (strongSelf.chatInteraction.peerId, activities)
+                    strongSelf.topChrome.inputActivities = (strongSelf.chatInteraction.peerId, activities)
                     
                     for activity in activities {
                         switch activity.1 {
@@ -9782,7 +9795,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         }
         
         
-        self.genericView.bubblesView.updateSearchButton(hidden: !searchAvailable, animated: transition.animated)
+        self.topChrome.updateSearchButton(hidden: !searchAvailable, animated: transition.animated)
         
         self.updateEmptyBotStartAction()
         chatInteraction.update(animated: !wasEmpty, { current in
@@ -10203,7 +10216,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
     }
 
     fileprivate var headerPhotoAccessibilityActionName: String? {
-        if genericView.bubblesView.hasStories {
+        if topChrome.hasStories {
             return strings().voiceOverCommonStories
         }
         if chatInteraction.mode == .history, chatInteraction.peerId != chatInteraction.interactionContext.peerId, chatInteraction.presentation.mainPeer?.largeProfileImage != nil {
@@ -10213,22 +10226,21 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
     }
 
     fileprivate func openPhotoFromHeader() {
-        let bubbles = genericView.bubblesView
-        if bubbles.hasStories {
+        if topChrome.hasStories {
             chatInteraction.openStories({ [weak self] peerId, _, _ in
                 if self?.chatInteraction.peerId == peerId {
-                    return self?.genericView.bubblesView.avatarStoryControl
+                    return self?.topChrome.avatarStoryControl
                 } else {
                     return nil
                 }
             }, { [weak self] signal in
                 guard let self = self else { return }
-                SetOpenStoryDisposable(self.genericView.bubblesView.avatarStoryControl.pushLoadingStatus(signal: signal))
+                SetOpenStoryDisposable(self.topChrome.avatarStoryControl.pushLoadingStatus(signal: signal))
             })
         } else {
             if chatInteraction.mode == .history, chatInteraction.peerId != chatInteraction.interactionContext.peerId {
                 if let peer = chatInteraction.presentation.mainPeer, let large = peer.largeProfileImage {
-                    showPhotosGallery(context: chatInteraction.interactionContext, peerId: peer.id, firstStableId: AnyHashable(large.resource.id.stringRepresentation), bubbles, nil)
+                    showPhotosGallery(context: chatInteraction.interactionContext, peerId: peer.id, firstStableId: AnyHashable(large.resource.id.stringRepresentation), topChrome, nil)
                     return
                 }
             }
@@ -10239,19 +10251,47 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         return .clear
     }
 
-    fileprivate func updateBubblesBackButton() {
+    private lazy var topChrome: ChatTopChrome = {
+        if ChatStyle.current.showsNavigationBar {
+            return NavigationBarChatTopChrome(controller: self, chatInteraction: chatInteraction)
+        }
+        return ChatHeaderBubblesView(frame: NSMakeRect(0, 0, _frameRect.width, ChatHeaderBubblesView.totalHeight), chatInteraction: chatInteraction)
+    }()
+
+    private var navigationBarChrome: NavigationBarChatTopChrome? {
+        return topChrome as? NavigationBarChatTopChrome
+    }
+
+    public override func getLeftBarViewOnce() -> BarView {
+        return navigationBarChrome?.leftBar ?? super.getLeftBarViewOnce()
+    }
+
+    public override func getCenterBarViewOnce() -> TitledBarView {
+        return navigationBarChrome?.titleBar ?? super.getCenterBarViewOnce()
+    }
+
+    public override func getRightBarViewOnce() -> BarView {
+        return navigationBarChrome?.rightBar ?? super.getRightBarViewOnce()
+    }
+
+    public override func requestUpdateRightBar() {
+        super.requestUpdateRightBar()
+        navigationBarChrome?.updateLocalizationAndTheme()
+    }
+
+    fileprivate func updateTopChromeBackButton() {
         guard isLoaded() else { return }
         guard let nav = navigationController else {
-            genericView.bubblesView.hasBackButton = false
-            genericView.bubblesView.isCloseButton = false
+            topChrome.hasBackButton = false
+            topChrome.isCloseButton = false
             return
         }
         let prev = nav.previousController
         let previousIsEmpty = prev?.isKind(of: ChatHistoryUIHooks.shared.emptyChatControllerType()) ?? false
         let stackHas = nav.stackCount > 1 && !previousIsEmpty
         let isClose = mode == .preview
-        genericView.bubblesView.hasBackButton = stackHas || isClose
-        genericView.bubblesView.isCloseButton = isClose
+        topChrome.hasBackButton = stackHas || isClose
+        topChrome.isCloseButton = isClose
     }
 
     fileprivate func openPeerInfoFromHeader() {
@@ -10684,7 +10724,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         super.viewDidAppear(animated)
 
         isPushedGlobalBackground = true
-        updateBubblesBackButton()
+        updateTopChromeBackButton()
         
 
         if let initialAction = self.chatInteraction.presentation.initialAction {
@@ -11186,7 +11226,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         readMetricsManager?.resume()
         setVisibleRefreshActive(true)
 
-        updateBubblesBackButton()
+        updateTopChromeBackButton()
 
         DispatchQueue.main.async { [weak self] in
             self?.applyCaptureExclusionIfNeeded()
@@ -11268,7 +11308,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
         })
         super.init(context)
 
-        self.bar = .init(height: 0)
+        self.bar = .init(height: ChatStyle.current.showsNavigationBar ? NavigationBarStyle.defaultHeight : 0)
         self.insets = NSEdgeInsets()
 
         self.chatInteraction.update(animated: false, {$0.updatedInitialAction(initialAction)})
@@ -11486,7 +11526,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             }
             
             if value.selectionState != oldValue.selectionState || value.reportMode != oldValue.reportMode {
-                genericView.bubblesView.setMenuMode(value.selectionState != nil ? .done : .menu)
+                topChrome.setMenuMode(value.selectionState != nil ? .done : .menu)
             }
             let input = value.effectiveInput
             if input != oldValue.effectiveInput || value.botMenu != oldValue.botMenu || force {
@@ -11600,7 +11640,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             
             if value.searchMode != oldValue.searchMode || value.pinnedMessageId != oldValue.pinnedMessageId || value.peerStatus != oldValue.peerStatus || value.interfaceState.dismissedPinnedMessageId != oldValue.interfaceState.dismissedPinnedMessageId || value.initialAction != oldValue.initialAction || value.restrictionInfo != oldValue.restrictionInfo || value.hidePinnedMessage != oldValue.hidePinnedMessage || value.groupCall != oldValue.groupCall || value.reportMode != oldValue.reportMode || value.inviteRequestsPendingPeers != oldValue.inviteRequestsPendingPeers || value.threadInfo?.isClosed != oldValue.threadInfo?.isClosed || value.translateState != oldValue.translateState || value.savedMessageTags != oldValue.savedMessageTags || value.connectedBot != oldValue.connectedBot || value.adMessage != oldValue.adMessage || value.historyCount != oldValue.historyCount || value.monoforumState != oldValue.monoforumState || value.removePaidMessageFeeData != oldValue.removePaidMessageFeeData || value.chatLocation.threadId != oldValue.chatLocation.threadId || value.managedBotNeedsPhoto != oldValue.managedBotNeedsPhoto {
                 genericView.updateHeader(value, animated, value.hidePinnedMessage != oldValue.hidePinnedMessage)
-                genericView.bubblesView.updatePresentation(value, force: true)
+                topChrome.updatePresentation(value, force: true)
             }
             
             if value.chatLocation != oldValue.chatLocation {
@@ -11612,7 +11652,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
             }
             
             if value.reportMode != oldValue.reportMode {
-                self.genericView.bubblesView.updateSearchButton(hidden: !isSearchAvailable(value), animated: animated)
+                self.topChrome.updateSearchButton(hidden: !isSearchAvailable(value), animated: animated)
             }
 
             if (value.peer != nil && oldValue.peer == nil) || value.isNotAccessible != oldValue.isNotAccessible {
@@ -11957,7 +11997,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
     }
     
     public override func initializer() -> ChatControllerView {
-        return ChatControllerView(frame: NSMakeRect(_frameRect.minX, _frameRect.minY, _frameRect.width, _frameRect.height - self.bar.height), chatInteraction:chatInteraction);
+        return ChatControllerView(frame: NSMakeRect(_frameRect.minX, _frameRect.minY, _frameRect.width, _frameRect.height - self.bar.height), chatInteraction:chatInteraction, bubblesView: topChrome as? ChatHeaderBubblesView);
     }
     
     public override func requestUpdateCenterBar() {
@@ -12060,7 +12100,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
     }
     
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
-        super.updateLocalizationAndTheme(theme: genericView.chatTheme ?? theme)
+        super.updateLocalizationAndTheme(theme: ChatStyle.current.chromeTheme(chatTheme: genericView.chatTheme, appTheme: theme))
     }
     
     

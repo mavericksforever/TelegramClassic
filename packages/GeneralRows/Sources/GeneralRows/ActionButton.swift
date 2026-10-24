@@ -39,7 +39,7 @@ public final class ActionButton : Control {
         fatalError("init(coder:) has not been implemented")
     }
 
-    public func updateAndLayout(item: ActionItem, bgColor: NSColor, useGlass: Bool) {
+    public func updateAndLayout(item: ActionItem, bgColor: NSColor, useGlass: Bool, cornerRadius: CGFloat = 20) {
         self.setAccessibilityLabel(item.text)
         if useGlass {
             let foreground: NSColor = bgColor.lightness > 0.8 ? NSColor.black : NSColor.white
@@ -58,7 +58,7 @@ public final class ActionButton : Control {
             if let existing = self.glassView {
                 glass = existing
             } else {
-                glass = LiquidGlassView(frame: bounds, cornerRadius: 20, hasShadow: true, hasBorder: true, forceAppearance: .forceLight)
+                glass = LiquidGlassView(frame: bounds, cornerRadius: cornerRadius, hasShadow: true, hasBorder: true, forceAppearance: .forceLight)
                 self.glassView = glass
                 addSubview(glass, positioned: .below, relativeTo: imageView)
             }
@@ -74,7 +74,7 @@ public final class ActionButton : Control {
             }
             self.stretchReferenceView = nil
             self.backgroundColor = bgColor
-            self.layer?.cornerRadius = 20
+            self.layer?.cornerRadius = cornerRadius
         }
 
 

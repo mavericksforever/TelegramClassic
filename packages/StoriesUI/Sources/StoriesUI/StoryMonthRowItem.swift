@@ -140,6 +140,7 @@ public final class StoryMonthRowItem : GeneralRowItem {
         
         layoutItems.removeAll()
         var point: CGPoint = CGPoint(x: self.viewType.innerInset.left, y: self.viewType.innerInset.top + itemSize.height)
+        let tileRadius = standalone ? CGFloat.cornerRadius : MediaGridStyle.current.tileCornerRadius
         for (i, item) in self.items.enumerated() {
             let viewType: MediaCell.Type
             viewType = (item.storyItem.media._asMedia() is TelegramMediaFile) ? MediaVideoCell.self : MediaPhotoCell.self
@@ -154,22 +155,22 @@ public final class StoryMonthRowItem : GeneralRowItem {
                 if self.items.count < rowCount {
                     if item == self.items.first {
                         if self.viewType.position != .last {
-                            topLeft = .Corner(.cornerRadius)
+                            topLeft = .Corner(tileRadius)
                         }
-                        bottomLeft = .Corner(.cornerRadius)
+                        bottomLeft = .Corner(tileRadius)
                     }
                 } else if self.items.count == rowCount {
                     if item == self.items.first {
                         if self.viewType.position != .last {
-                            topLeft = .Corner(.cornerRadius)
+                            topLeft = .Corner(tileRadius)
                         }
-                        bottomLeft = .Corner(.cornerRadius)
+                        bottomLeft = .Corner(tileRadius)
                     } else if item == self.items.last {
                         if item == self.items.last {
                             if self.viewType.position != .last {
-                                topRight = .Corner(.cornerRadius)
+                                topRight = .Corner(tileRadius)
                             }
-                            bottomRight = .Corner(.cornerRadius)
+                            bottomRight = .Corner(tileRadius)
                         }
                     }
                 } else {
@@ -181,16 +182,16 @@ public final class StoryMonthRowItem : GeneralRowItem {
                     if firstLine {
                         if self.viewType.position != .last {
                             if i % rowCount == 1 {
-                                topLeft = .Corner(.cornerRadius)
+                                topLeft = .Corner(tileRadius)
                             } else if i % rowCount == 0 {
-                                topRight = .Corner(.cornerRadius)
+                                topRight = .Corner(tileRadius)
                             }
                         }
                     } else if lastLine {
                         if i % rowCount == 1 {
-                            bottomLeft = .Corner(.cornerRadius)
+                            bottomLeft = .Corner(tileRadius)
                         } else if i % rowCount == 0 {
-                            bottomRight = .Corner(.cornerRadius)
+                            bottomRight = .Corner(tileRadius)
                         }
                     }
                 }

@@ -374,7 +374,7 @@ private final class PeerMediaLabSession {
         guard let block = view else {
             return nil
         }
-        return max(0, block.frame.minY - 64)
+        return max(0, block.frame.minY - NavigationBarStyle.defaultHeight)
     }
 
     private var outerMaxOffset: CGFloat {

@@ -134,6 +134,10 @@ open class LiquidGlassView: View {
         return System.liquidGlass && !forceBlur
     }
 
+    private var drawsDecorations: Bool {
+        return !usesGlass && !InterfaceStyle.current.drawsFlatSurfaces
+    }
+
     public func setCustomTint(_ color: NSColor?, animated: Bool, duration: TimeInterval = 0.25) {
         // The fallback path no longer rebuilds the effect view when crossing
         // nil↔non-nil — the tint is composed via `tintOverlay`, which is
@@ -266,7 +270,7 @@ open class LiquidGlassView: View {
     private func currentRebuildState() -> RebuildState {
         return RebuildState(
             usesGlass: usesGlass,
-            blurEnabled: System.blurEnabled,
+            blurEnabled: System.blurEnabled && !InterfaceStyle.current.drawsFlatSurfaces,
             forceAppearance: forceAppearance,
             customTint: customTint
         )
@@ -478,7 +482,7 @@ open class LiquidGlassView: View {
         // shadow tracks the blurred surface's rounded bounds directly. Putting
         // it on the wrapper draws a rectangular shadow outside the visible
         // rounded glass, which leaks past the corners.
-        if hasShadow, !usesGlass {
+        if hasShadow, drawsDecorations {
             let s = NSShadow()
             s.shadowColor = NSColor.black.withAlphaComponent(0.12)
             s.shadowOffset = NSMakeSize(0, 0)
@@ -494,7 +498,7 @@ open class LiquidGlassView: View {
     }
 
     private func applyBorder() {
-        guard !usesGlass else {
+        guard drawsDecorations else {
             effectView.layer?.borderWidth = 0
             return
         }

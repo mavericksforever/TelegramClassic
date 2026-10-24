@@ -186,7 +186,11 @@ open class EmptyChatViewController<Context: AccountContextProtocol>: TelegramGen
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        self.backgroundColor = .clear
+        if InterfaceStyle.current.split.floatingPanes {
+            self.backgroundColor = .clear
+        } else {
+            updateBackgroundColor(theme.controllerBackgroundMode)
+        }
         self.cards.updateLocalizationAndTheme(theme: theme)
     }
     
@@ -196,7 +200,20 @@ open class EmptyChatViewController<Context: AccountContextProtocol>: TelegramGen
     
     public override func updateBackgroundColor(_ backgroundMode: TableBackgroundMode) {
         super.updateBackgroundColor(backgroundMode)
-        
+        let blendsWithChatList: Bool
+        if theme.bubbled {
+            switch theme.backgroundMode {
+            case .plain:
+                blendsWithChatList = theme.colors.chatBackground == theme.colors.background
+            case let .color(color):
+                blendsWithChatList = color == theme.colors.background
+            case .background, .tiled, .gradient:
+                blendsWithChatList = false
+            }
+        } else {
+            blendsWithChatList = theme.colors.chatBackground == theme.colors.background
+        }
+        self.backgroundColor = blendsWithChatList ? theme.colors.border : .clear
     }
     
     override public var isOpaque: Bool {

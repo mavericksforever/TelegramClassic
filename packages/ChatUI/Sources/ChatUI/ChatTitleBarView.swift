@@ -48,11 +48,25 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
     private var layoutState:SplitViewState {
         return chatInteraction.interactionContext.layout
     }
-    private var hasBackButton: Bool {
-        if let controller = controller {
-            return controller is ChatAdditionControllerKind || controller is ChatScheduleControllerKind || layoutState == .single
+
+    var hasBackButton: Bool = false {
+        didSet {
+            if oldValue != hasBackButton {
+                updateStatus(presentation: chatInteraction.presentation)
+                needsLayout = true
+            }
         }
-        return false
+    }
+
+    var backHandler: (() -> Void)?
+    var avatarHandler: (() -> Void)?
+    var avatarAccessibilityActionName: (() -> String?)?
+    var titleHandler: (() -> Void)?
+    var searchHandler: (() -> Void)?
+    var callHandler: (() -> Void)?
+
+    var avatarStoryControl: AvatarStoryControl {
+        return avatarControl
     }
     private var reportPlaceholder: SelectMessagesPlaceholderView?
     private let activities:ChatActivitiesModel
@@ -230,9 +244,7 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         addSubview(activities.view!)
         
         searchButton.set(handler: { [weak self] _ in
-            self?.chatInteraction.update { current in
-                current.updatedSearchMode(.init(inSearch: !current.searchMode.inSearch))
-            }
+            self?.searchHandler?()
         }, for: .Click)
         
         addSubview(searchButton)
@@ -245,14 +257,7 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         })
         
         callButton.set(handler: { [weak self] _ in
-            guard let chatInteraction = self?.chatInteraction else {
-                return
-            }
-            if let groupCall = chatInteraction.presentation.groupCall {
-                chatInteraction.joinGroupCall(groupCall.activeCall, groupCall.joinHash)
-            } else {
-                chatInteraction.call()
-            }
+            self?.callHandler?()
         }, for: .Click)
         
         activities.view?.isHidden = true
@@ -267,11 +272,11 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         addSubview(photoContainer)
         
         photoContainer.accessibilityLabelProvider = { [weak self] in
-            return self?.photoAccessibilityLabel
+            return self?.avatarAccessibilityActionName?()
         }
-        
+
         photoContainer.set(handler: { [weak self] _ in
-            self?.openPhoto()
+            self?.avatarHandler?()
         }, for: .Click)
         
         disposable.set(chatInteraction.interactionContext.layoutValue.start(next: { [weak self] state in
@@ -283,7 +288,7 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         closeButton.autohighlight = false
         closeButton.set(image: theme.icons.chatNavigationBack, for: .Normal)
         closeButton.set(handler: { [weak self] _ in
-            self?.chatInteraction.interactionContext.bindings.rootNavigation().back()
+            self?.backHandler?()
         }, for: .Click)
         _ = closeButton.sizeToFit()
         closeButton.setFrameSize(closeButton.frame.width, frame.height)
@@ -299,43 +304,6 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         
         self.updateStatus(presentation: self.chatInteraction.presentation)
         
-    }
-    
-    private var photoAccessibilityLabel: String? {
-        if hasStories {
-            return strings().voiceOverCommonStories
-        }
-        if chatInteraction.mode == .history, chatInteraction.peerId != chatInteraction.interactionContext.peerId, chatInteraction.presentation.mainPeer?.largeProfileImage != nil {
-            return strings().voiceOverCommonProfilePhoto
-        }
-        return nil
-    }
-
-    private func openPhoto() {
-        if self.hasStories {
-            
-            chatInteraction.openStories({ [weak self] peerId, _, _ in
-                if self?.chatInteraction.peerId == peerId {
-                    return self?.avatarControl
-                } else {
-                    return nil
-                }
-            }, { [weak self] signal in
-                self?.setOpenProgress(signal)
-            })
-        } else {
-            if chatInteraction.mode == .history, chatInteraction.peerId != chatInteraction.interactionContext.peerId {
-                if let peer = chatInteraction.presentation.mainPeer, let large = peer.largeProfileImage {
-                    showPhotosGallery(context: chatInteraction.interactionContext, peerId: peer.id, firstStableId: AnyHashable(large.resource.id.stringRepresentation), self, nil)
-                    return
-                }
-            }
-        }
-        
-    }
-    
-    private func setOpenProgress(_ signal: Signal<Never, NoError>) {
-        SetOpenStoryDisposable(self.avatarControl.pushLoadingStatus(signal: signal))
     }
     
     func updateSearchButton(hidden: Bool, animated: Bool) {
@@ -381,41 +349,10 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         
         let point = convert(event.locationInWindow, from: nil)
 
-        let openInfo:(ChatInteraction)->Void = { chatInteraction in
-            if chatInteraction.mode == .history {
-                if chatInteraction.presentation.reportMode != nil {
-
-                } else if chatInteraction.peerId == repliesPeerId {
-                    
-                } else if chatInteraction.peerId == chatInteraction.interactionContext.peerId {
-                    chatInteraction.interactionContext.bindings.rootNavigation().push(ChatUIHooks.shared.makePeerMediaController(chatInteraction.interactionContext, chatInteraction.peerId, false))
-                } else {
-                    switch chatInteraction.chatLocation {
-                    case let .peer(peerId):
-                        chatInteraction.openInfo(peerId, false, nil, nil)
-                    case let .thread(data):
-                        if data.isMonoforumPost {
-                            chatInteraction.openInfo(PeerId(data.threadId), false, nil, nil)
-                        } else {
-                            chatInteraction.openInfo(data.peerId, false, nil, nil)
-                        }
-                    }
-                }
-            } else if chatInteraction.presentation.isTopicMode {
-                chatInteraction.openInfo(chatInteraction.peerId, false, nil, nil)
-            } else if chatInteraction.mode.isSavedMessagesThread, let threadId = chatInteraction.chatLocation.threadId {
-                chatInteraction.openInfo(PeerId(threadId), false, nil, nil)
-            }
-        }
-        
-        if hasBackButton {
-            if point.x > 20 {
-               openInfo(chatInteraction)
-            } else {
-                chatInteraction.interactionContext.bindings.rootNavigation().back()
-            }
+        if hasBackButton, point.x <= 20 {
+            backHandler?()
         } else {
-            openInfo(chatInteraction)
+            titleHandler?()
         }
     }
     
@@ -539,14 +476,8 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
 
         if let peerView = self.peerView {
                         
-            switch layoutState {
-            case .single:
-                self.badgeNode.view?.isHidden = false
-                self.closeButton.isHidden = false
-            default:
-                self.badgeNode.view?.isHidden = true
-                self.closeButton.isHidden = !hasBackButton
-            }
+            self.badgeNode.view?.isHidden = layoutState != .single
+            self.closeButton.isHidden = !hasBackButton
             let mode = chatInteraction.mode
             
 

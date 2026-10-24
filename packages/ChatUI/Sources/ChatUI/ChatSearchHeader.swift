@@ -799,8 +799,9 @@ class ChatSearchHeader : View, Notifable, ChatHeaderProtocol {
             
             prev.isEnabled = !value.messages.0.isEmpty && value.selectedIndex < value.messages.0.count - 1
             next.isEnabled = !value.messages.0.isEmpty && value.selectedIndex > 0
-            next.set(image: next.isEnabled ? theme.icons.chat_search_next : theme.icons.chat_search_next_disabled, for: .Normal)
-            prev.set(image: prev.isEnabled ? theme.icons.chat_search_prev : theme.icons.chat_search_prev_disabled, for: .Normal)
+            let searchIcons = ChatStyle.current.searchIcons
+            next.set(image: searchIcons.next(theme, next.isEnabled), for: .Normal)
+            prev.set(image: searchIcons.prev(theme, prev.isEnabled), for: .Normal)
 
             
             
@@ -1162,22 +1163,24 @@ class ChatSearchHeader : View, Notifable, ChatHeaderProtocol {
     override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         let theme = (theme as! TelegramPresentationTheme)
-        backgroundColor = .clear
+        applyChatHeaderStripSurface(theme)
 
-        next.set(image: theme.icons.chat_search_next, for: .Normal)
+        let searchIcons = ChatStyle.current.searchIcons
+
+        next.set(image: searchIcons.next(theme, true), for: .Normal)
         _ = next.sizeToFit()
 
-        prev.set(image: theme.icons.chat_search_prev, for: .Normal)
+        prev.set(image: searchIcons.prev(theme, true), for: .Normal)
         _ = prev.sizeToFit()
 
 
-        calendar.set(image: theme.icons.chat_search_calendar, for: .Normal)
+        calendar.set(image: searchIcons.calendar(theme), for: .Normal)
         _ = calendar.sizeToFit()
 
-        cancel.set(image: theme.icons.chat_search_cancel, for: .Normal)
+        cancel.set(image: searchIcons.cancel(theme), for: .Normal)
         _ = cancel.sizeToFit()
 
-        from.set(image: theme.icons.chat_search_from, for: .Normal)
+        from.set(image: searchIcons.from(theme), for: .Normal)
         _ = from.sizeToFit()
 
         let transparent = theme.colors.grayBackground.withAlphaComponent(0.5)
