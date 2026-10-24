@@ -1,0 +1,135 @@
+name: Build
+
+on:
+  push:
+    branches: [classic-interface]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Check out submodules
+        run: |
+          git submodule update --init --recursive --depth 1 --jobs 4 \
+            submodules/Sparkle \
+            submodules/libprisma \
+            submodules/libtgvoip \
+            submodules/regex \
+            submodules/rlottie \
+            submodules/tg_owt \
+            submodules/tgcalls \
+            submodules/tlottie
+          git submodule update --init --depth 1 submodules/telegram-ios
+          git -C submodules/telegram-ios submodule update --init --depth 1 --jobs 4 \
+            third-party/td/td \
+            third-party/wallet-engine/wallet-engine \
+            third-party/mtproto-engine \
+            third-party/dav1d/dav1d
+
+      - name: Free disk space
+        run: |
+          df -h /
+          for xcode in /Applications/Xcode_*.app; do
+            if [ "$xcode" != /Applications/Xcode_26.3.app ]; then
+              sudo rm -rf "$xcode"
+            fi
+          done
+          sudo xcode-select -s /Applications/Xcode_26.3.app
+          df -h /
+
+      - name: Install build tools
+        run: |
+          brew install meson nasm yasm autoconf automake libtool
+          if ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+
+      - name: Compute framework cache key
+        id: frameworks-key
+        run: |
+          {
+            git rev-parse HEAD:core-xprojects
+            git rev-parse HEAD:scripts
+            git submodule status --recursive
+            xcodebuild -version
+          } > "$RUNNER_TEMP/frameworks-key.txt"
+          echo "key=frameworks-$(shasum -a 256 "$RUNNER_TEMP/frameworks-key.txt" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore frameworks
+        id: frameworks-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            core-xprojects/*/build
+            packages/WalletEngine/wallet_engineFFI.xcframework
+            submodules/telegram-ios/submodules/MTProtoRustEngine/MTProtoEngineFFI.xcframework
+          key: ${{ steps.frameworks-key.outputs.key }}
+
+      - name: Build frameworks
+        run: sh scripts/configure_frameworks.sh
+
+      - name: Save frameworks
+        if: steps.frameworks-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            core-xprojects/*/build
+            packages/WalletEngine/wallet_engineFFI.xcframework
+            submodules/telegram-ios/submodules/MTProtoRustEngine/MTProtoEngineFFI.xcframework
+          key: ${{ steps.frameworks-key.outputs.key }}
+
+      - name: Build Telegram
+        run: |
+          if ! xcodebuild archive \
+            -workspace Telegram-Mac.xcworkspace \
+            -scheme Release \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath "$RUNNER_TEMP/Telegram.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            ARCHS=arm64 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            'SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) STABLE' \
+            > "$RUNNER_TEMP/xcodebuild.log" 2>&1; then
+            grep -E -A3 '(^|: )(fatal )?error: |^ld: [^w]|^Undefined symbols' "$RUNNER_TEMP/xcodebuild.log" | head -300 || true
+            tail -40 "$RUNNER_TEMP/xcodebuild.log"
+            exit 1
+          fi
+
+      - name: Package
+        id: package
+        run: |
+          APP="$RUNNER_TEMP/Telegram.xcarchive/Products/Applications/Telegram.app"
+          ZIP="$RUNNER_TEMP/TelegramClassic-${GITHUB_SHA::7}.zip"
+          codesign --force --deep --sign - "$APP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.package.outputs.zip }}
+          archive: false
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-${{ github.sha }}
+          path: ${{ runner.temp }}/xcodebuild.log
+          if-no-files-found: ignore
