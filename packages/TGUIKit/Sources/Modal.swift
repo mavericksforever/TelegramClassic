@@ -132,6 +132,7 @@ private class ModalInteractionsContainer : View {
     let extraActionView:ImageButton?
     let interactions:ModalInteractions
     let borderView:View?
+    private weak var modal: Modal?
 
     private var bottomTextView:TextView?
 
@@ -254,6 +255,7 @@ private class ModalInteractionsContainer : View {
             borderView = nil
         }
 
+        self.modal = modal
         super.init()
         self.backgroundColor = barBackground
         if let cancel = interactions.cancel {
@@ -529,11 +531,10 @@ private class ModalInteractionsContainer : View {
     }
 
     private var barBackground: NSColor {
-        let pres = interactions.customTheme()
-        if InterfaceStyle.current.modal.opaqueChrome {
-            return pres.activeBackground
+        if interactions.contentFlowsBehind {
+            return InterfaceStyle.current.modal.opaqueChrome ? (modal?.controller?.containerBackground ?? .clear) : .clear
         }
-        return interactions.contentFlowsBehind ? .clear : pres.background
+        return interactions.customTheme().background
     }
 
     private var showsShadowGradient: Bool {
@@ -751,9 +752,19 @@ private final class ModalHeaderView: View {
     }
     
     private func updateBackground(animated: Bool) {
-        let drawsBar = InterfaceStyle.current.modal.opaqueChrome && !isEdgeHidden
-        background = drawsBar ? customTheme().activeBackground : .clear
-        borderColor = drawsBar ? customTheme().border : .clear
+        if InterfaceStyle.current.modal.opaqueChrome {
+            switch state {
+            case .active:
+                background = customTheme().activeBackground
+                borderColor = customTheme().activeBorder
+            case .normal:
+                background = isEdgeHidden ? .clear : (controller?.containerBackground ?? .clear)
+                borderColor = customTheme().border
+            }
+        } else {
+            background = .clear
+            borderColor = .clear
+        }
         if customTheme().hideUnactiveText {
             self.titleView.change(opacity: state == .normal ? 0 : 1, animated: animated)
         } else {
