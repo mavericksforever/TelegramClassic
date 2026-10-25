@@ -87,6 +87,7 @@ final class NavigationBarChatTopChrome: ChatTopChrome {
         didSet {
             if oldValue != isCloseButton {
                 updateMenuButtonImages()
+                updateMenuButtonAction()
             }
         }
     }
@@ -109,17 +110,7 @@ final class NavigationBarChatTopChrome: ChatTopChrome {
         rightBar.addSubview(menuButton)
         rightBar.addSubview(doneButton)
 
-        menuButton.set(handler: { [weak self] _ in
-            if self?.isCloseButton == true {
-                self?.backHandler?()
-            }
-        }, for: .Click)
-        menuButton.contextMenu = { [weak self] in
-            guard let self, !self.isCloseButton else {
-                return nil
-            }
-            return self.menuContextMenu?()
-        }
+        updateMenuButtonAction()
 
         doneButton.set(font: .medium(.text), for: .Normal)
         doneButton.set(text: strings().navigationDone, for: .Normal)
@@ -141,6 +132,20 @@ final class NavigationBarChatTopChrome: ChatTopChrome {
         doneButton.set(color: theme.colors.accent, for: .Normal)
         _ = doneButton.sizeToFit()
         doneButton.center()
+    }
+
+    private func updateMenuButtonAction() {
+        menuButton.removeAllHandlers()
+        if isCloseButton {
+            menuButton.contextMenu = nil
+            menuButton.set(handler: { [weak self] _ in
+                self?.backHandler?()
+            }, for: .Click)
+        } else {
+            menuButton.contextMenu = { [weak self] in
+                return self?.menuContextMenu?()
+            }
+        }
     }
 
     private func updateMenuButtonImages() {
