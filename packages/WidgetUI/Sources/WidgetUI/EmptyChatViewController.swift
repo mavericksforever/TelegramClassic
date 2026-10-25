@@ -62,7 +62,7 @@ public class EmptyChatView : View {
         self.layer?.disableActions()
         
         toggleTips.set(image: theme.icons.glass_close, for: .Normal)
-        toggleTips.setGlassEffect(size: NSMakeSize(40, 40))
+        toggleTips.setGlassEffect(size: NSMakeSize(40, 40), fallback: .circle)
         toggleTips.sizeToFit(.zero, NSMakeSize(40, 40), thatFit: true)
 
         toggleTips.autohighlight = false

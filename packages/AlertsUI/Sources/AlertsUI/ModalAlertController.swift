@@ -109,7 +109,7 @@ private final class ButtonsItemView : GeneralRowView {
             current._thatFit = true
             current.set(color: item.presentation.colors.darkGrayText, for: .Normal)
             current.set(background: .clear, for: .Normal)
-            current.setGlassEffect(forceAppearance: item.presentation.appearance.glassAppearance)
+            current.setGlassEffect(forceAppearance: item.presentation.appearance.glassAppearance, fallback: .plate)
             current.layer?.borderWidth = 0
         } else if let view = self.secondButton {
             performSubviewRemoval(view, animated: animated)

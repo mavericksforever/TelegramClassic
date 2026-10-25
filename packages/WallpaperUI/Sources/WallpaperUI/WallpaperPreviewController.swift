@@ -251,13 +251,13 @@ private final class WallpaperPreviewView: View {
         apply.update(text: strings().wallpaperPreviewApply, lottie: nil)
 
         dismissButton.set(image: theme.icons.glass_close, for: .Normal)
-        dismissButton.setGlassEffect()
+        dismissButton.setGlassEffect(fallback: .circle)
         dismissButton.setAccessibilityLabel(strings().voiceOverCommonClose)
         dismissButton.sizeToFit(.zero, NSMakeSize(36, 36), thatFit: true)
         addSubview(dismissButton)
 
         shareButton.set(image: TelegramThemeHooks.shared.image(.iconShareStickerPack).precomposed(theme.colors.text), for: .Normal)
-        shareButton.setGlassEffect()
+        shareButton.setGlassEffect(fallback: .circle)
         shareButton.setAccessibilityLabel(strings().voiceOverCommonShare)
         shareButton.sizeToFit(.zero, NSMakeSize(36, 36), thatFit: true)
         addSubview(shareButton)

@@ -79,13 +79,13 @@ private final class ThemeChatPreviewRowView: TableRowView {
         addSubview(applyButton)
 
         dismissButton.set(image: theme.icons.glass_close, for: .Normal)
-        dismissButton.setGlassEffect()
+        dismissButton.setGlassEffect(fallback: .circle)
         dismissButton.sizeToFit(.zero, NSMakeSize(36, 36), thatFit: true)
         dismissButton.setAccessibilityLabel(strings().voiceOverCommonClose)
         addSubview(dismissButton)
 
         shareButton.set(image: TelegramThemeHooks.shared.image(.iconShareStickerPack).precomposed(theme.colors.text), for: .Normal)
-        shareButton.setGlassEffect()
+        shareButton.setGlassEffect(fallback: .circle)
         shareButton.sizeToFit(.zero, NSMakeSize(36, 36), thatFit: true)
         shareButton.setAccessibilityLabel(strings().voiceOverCommonShare)
         addSubview(shareButton)

@@ -6,6 +6,17 @@ public enum LiquidGlassAppearance {
     case automatic
     case forceLight
     case forceDark
+
+    func palette(_ theme: PresentationTheme) -> ColorPalette {
+        switch self {
+        case .forceDark:
+            return darkPalette
+        case .forceLight:
+            return whitePalette
+        case .automatic:
+            return theme.colors
+        }
+    }
 }
 
 public extension NSAppearance {
@@ -400,14 +411,12 @@ open class LiquidGlassView: View {
                 } else {
                     effectView.appearance = NSAppearance(named: .vibrantDark) ?? theme.appearance
                 }
-                palette = darkPalette
             case .forceLight:
-                palette = whitePalette
                 effectView.appearance = NSAppearance(named: .aqua) ?? theme.appearance
             case .automatic:
-                palette = theme.colors
                 effectView.appearance = theme.appearance
             }
+            palette = forceAppearance.palette(theme)
         }
         if #available(macOS 26.0, *), let glass = effectView as? NSGlassEffectView {
             // Set tintColor without an implicit Core Animation transaction. When

@@ -173,12 +173,12 @@ public class ChannelEventLogView : View {
         settings.sizeToFit(NSMakeSize(30, 0), NSMakeSize(0, 40), thatFit: false)
         settings.setFrameSize(NSMakeSize(settings.frame.width, 40))
         settings.layer?.cornerRadius = 20
-        settings.setGlassEffect(size: settings.frame.size)
+        settings.setGlassEffect(size: settings.frame.size, fallback: .plate)
 
         info.set(image: TelegramThemeHooks.shared.image(.iconChannelPromoInfo).precomposed(theme.colors.text), for: .Normal)
         info.sizeToFit(.zero, NSMakeSize(40, 40), thatFit: true)
         info.layer?.cornerRadius = 20
-        info.setGlassEffect(size: NSMakeSize(40, 40))
+        info.setGlassEffect(size: NSMakeSize(40, 40), fallback: .circle)
         info.setAccessibilityLabel(strings().voiceOverCommonInfo)
     }
     

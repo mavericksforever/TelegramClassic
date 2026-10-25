@@ -46,7 +46,7 @@ private final class SelfPresentationPlaceholder : View {
         button.sizeToFit(NSMakeSize(50, 10), .zero, thatFit: false)
         button.set(background: .clear, for: .Normal)
         button.set(background: .clear, for: .Highlight)
-        button.setGlassEffect(forceAppearance: .forceDark)
+        button.setGlassEffect(forceAppearance: .forceDark, fallback: .plate)
         
         button.removeAllHandlers()
         button.set(handler: { _ in
@@ -226,7 +226,7 @@ public final class GroupCallMainVideoContainerView: Control {
                 currentPinView = ImageButton()
                 currentPinView.autohighlight = false
                 currentPinView.scaleOnClick = true
-                currentPinView.setGlassEffect(forceAppearance: .forceDark)
+                currentPinView.setGlassEffect(forceAppearance: .forceDark, fallback: .circle)
                 currentPinView.frame = NSMakeRect(frame.width - 36 - 10, 10, 36, 36)
                 currentPinView.layer?.opacity = self.mouseInside() && pinIsVisible ? 1 : 0
                 self.pinView = currentPinView
@@ -275,7 +275,7 @@ public final class GroupCallMainVideoContainerView: Control {
                 currentBackView = ImageButton()
                 currentBackView.autohighlight = false
                 currentBackView.scaleOnClick = true
-                currentBackView.setGlassEffect(forceAppearance: .forceDark)
+                currentBackView.setGlassEffect(forceAppearance: .forceDark, fallback: .circle)
                 currentBackView.set(image: GroupCallTheme.video_back, for: .Normal)
                 currentBackView.setAccessibilityLabel(strings().voiceOverCommonBack)
                 currentBackView.sizeToFit(.zero, NSMakeSize(36, 36), thatFit: true)

@@ -185,7 +185,7 @@ public class ChatRecorderRoundButton : ImageButton {
         super.init(frame: frameRect)
         autohighlight = false
         scaleOnClick = true
-        setGlassEffect(size: NSMakeSize(40, 40))
+        setGlassEffect(size: NSMakeSize(40, 40), fallback: .circle)
         updateLocalizationAndTheme(theme: theme)
     }
 

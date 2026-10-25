@@ -245,7 +245,7 @@ final class ChatThemeSelectorView : View {
         selectBackground.set(text: strings().chatChatThemeSelectBackground, for: .Normal)
         selectBackground.sizeToFit(NSMakeSize(20, 0), NSMakeSize(0, 36), thatFit: false)
         selectBackground.setFrameSize(NSMakeSize(selectBackground.frame.width, 36))
-        selectBackground.setGlassEffect(size: selectBackground.frame.size)
+        selectBackground.setGlassEffect(size: selectBackground.frame.size, fallback: .plate)
         
         let header = TextViewLayout(.initialize(string: strings().chatThemeTheme, color: theme.colors.text, font: .medium(.header)))
         header.measure(width: .greatestFiniteMagnitude)
@@ -293,7 +293,7 @@ final class ChatThemeSelectorView : View {
                 current.set(text: strings().chatChatThemeResetToDefault, for: .Normal)
                 current.sizeToFit(NSMakeSize(20, 0), NSMakeSize(0, 36), thatFit: false)
                 current.setFrameSize(NSMakeSize(current.frame.width, 36))
-                current.setGlassEffect(size: current.frame.size)
+                current.setGlassEffect(size: current.frame.size, fallback: .plate)
                 pendingSnapButtons.insert(current)
 
                 if animated {

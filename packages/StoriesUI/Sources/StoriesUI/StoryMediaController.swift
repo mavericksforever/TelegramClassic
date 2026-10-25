@@ -626,9 +626,9 @@ public final class StoryMediaView : View {
             self.delete.scaleOnClick = true
 
             let iconSize = NSMakeSize(Panel.buttonHeight, Panel.buttonHeight)
-            self.pin.setGlassEffect(size: iconSize)
-            self.archive.setGlassEffect()
-            self.delete.setGlassEffect(size: iconSize)
+            self.pin.setGlassEffect(size: iconSize, fallback: .circle)
+            self.archive.setGlassEffect(fallback: .plate)
+            self.delete.setGlassEffect(size: iconSize, fallback: .circle)
 
             self.pin.setAccessibilityLabel(strings().voiceOverCommonPin)
             self.delete.setAccessibilityLabel(strings().voiceOverCommonDelete)

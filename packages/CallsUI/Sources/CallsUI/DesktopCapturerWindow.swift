@@ -185,7 +185,7 @@ private final class DesktopCapturerView : View {
         share.set(font: .medium(.text), for: .Normal)
         cancel.set(color: .white, for: .Normal)
         cancel.set(background: .clear, for: .Normal)
-        cancel.setGlassEffect()
+        cancel.setGlassEffect(forceAppearance: .forceDark, fallback: .plate)
         cancel.sizeToFit(NSMakeSize(16, 0), NSMakeSize(100, 30), thatFit: true)
 
         share.set(color: .white, for: .Normal)

@@ -159,7 +159,7 @@ private class ModalInteractionsContainer : View {
                 switch interactions.cancelButtonStyle {
                 case .glass:
                     let appearance: LiquidGlassAppearance = pres.listBackground.lightness < 0.5 ? .forceDark : .forceLight
-                    cancelView.setGlassEffect(forceAppearance: appearance)
+                    cancelView.setGlassEffect(forceAppearance: appearance, fallback: .plate)
                 case .filled:
                     cancelView.set(background: pres.text.withAlphaComponent(0.1), for: .Normal)
                     cancelView.set(background: pres.text.withAlphaComponent(0.16), for: .Highlight)

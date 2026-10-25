@@ -17,6 +17,12 @@ public enum ImageButtonAnimationPolicy {
     case replaceScale
 }
 
+public enum GlassFallback {
+    case none
+    case plate
+    case circle
+}
+
 open class ImageButton: Button {
 
     public private(set) var imageView:ImageView = {
@@ -48,6 +54,9 @@ open class ImageButton: Button {
 
     private var _glassView: LiquidGlassView?
     private var _glassSize: NSSize?
+    private var _glassFallbackView: View?
+    private var _glassFallback: GlassFallback = .none
+    private var _glassFallbackAppearance: LiquidGlassAppearance = .automatic
     internal var _glassContentTint: NSColor?
 
     public var onGlassAppearanceChange: ((NSAppearance) -> Void)? {
@@ -57,10 +66,12 @@ open class ImageButton: Button {
     }
 
     public var glassForceAppearance: LiquidGlassAppearance {
-        get { return _glassView?.forceAppearance ?? .automatic }
+        get { return _glassView?.forceAppearance ?? _glassFallbackAppearance }
         set {
             _glassView?.forceAppearance = newValue
             _glassView?.updateLocalizationAndTheme(theme: presentation)
+            _glassFallbackAppearance = newValue
+            applyGlassFallbackColors(presentation)
         }
     }
 
@@ -115,18 +126,20 @@ open class ImageButton: Button {
         return target
     }
 
-    public func setGlassEffect(size: NSSize? = nil, tintColor: NSColor? = nil, forceAppearance: LiquidGlassAppearance? = nil, interactive: Bool = true) {
+    public func setGlassEffect(size: NSSize? = nil, tintColor: NSColor? = nil, forceAppearance: LiquidGlassAppearance? = nil, interactive: Bool = true, fallback: GlassFallback = .none) {
         let controls = InterfaceStyle.current.controls
-        guard _glassView == nil, tintColor != nil || controls.drawsUntintedGlass else { return }
+        guard _glassView == nil, _glassFallbackView == nil else { return }
+        guard tintColor != nil || controls.drawsUntintedGlass else {
+            installGlassFallback(fallback, size: size, forceAppearance: forceAppearance ?? .automatic)
+            return
+        }
         let glass = LiquidGlassView(frame: NSZeroRect, cornerRadius: controls.glassMaxCornerRadius, hasShadow: true, hasBorder: true, forceAppearance: forceAppearance, customTint: tintColor)
         _intendedGlassTint = tintColor
         glass.customTint = tintColor
         glass.onAppearanceChange = { [weak self] appearance in
             self?.onGlassAppearanceChange?(appearance)
         }
-        self.layer?.masksToBounds = false
-        self.autohighlight = false
-        self.shadow = nil
+        prepareGlassHost()
         self.addSubview(glass, positioned: .below, relativeTo: imageView)
         _glassView = glass
         _glassSize = size
@@ -136,8 +149,37 @@ open class ImageButton: Button {
         needsLayout = true
     }
 
+    private func prepareGlassHost() {
+        self.layer?.masksToBounds = false
+        self.autohighlight = false
+        self.shadow = nil
+    }
+
+    private func installGlassFallback(_ fallback: GlassFallback, size: NSSize?, forceAppearance: LiquidGlassAppearance) {
+        guard fallback != .none else { return }
+        let view = View()
+        view.isEventLess = true
+        view.layer?.borderWidth = .borderSize
+        prepareGlassHost()
+        self.addSubview(view, positioned: .below, relativeTo: imageView)
+        _glassFallbackView = view
+        _glassFallback = fallback
+        _glassFallbackAppearance = forceAppearance
+        _glassSize = size
+        applyGlassFallbackColors(presentation)
+        needsLayout = true
+    }
+
+    private func applyGlassFallbackColors(_ theme: PresentationTheme) {
+        guard let view = _glassFallbackView else { return }
+        let palette = _glassFallbackAppearance == theme.appearance.glassAppearance ? theme.colors : _glassFallbackAppearance.palette(theme)
+        view.backgroundColor = palette.background
+        view.layer?.borderColor = palette.border.cgColor
+    }
+
     public func setGlassEffectHidden(_ hidden: Bool) {
         _glassView?.isHidden = hidden
+        _glassFallbackView?.isHidden = hidden
     }
 
     public var glassSize: NSSize? {
@@ -261,7 +303,7 @@ open class ImageButton: Button {
         super.apply(state: state)
         self.previousState = state
 
-        if _glassView != nil {
+        if _glassView != nil || _glassFallbackView != nil {
             self.layer?.backgroundColor = NSColor.clear.cgColor
             additionBackgroundView?.backgroundColor = .clear
         }
@@ -423,12 +465,29 @@ open class ImageButton: Button {
         }
 
         if let glassView = _glassView {
-            let gs = _glassSize ?? size
-            let gx = (size.width - gs.width) / 2
-            let gy = (size.height - gs.height) / 2
-            transition.updateFrame(view: glassView, frame: NSMakeRect(gx, gy, gs.width, gs.height))
-            glassView.updateLayout(size: gs, transition: transition)
+            let glassFrame = self.glassFrame(in: size)
+            transition.updateFrame(view: glassView, frame: glassFrame)
+            glassView.updateLayout(size: glassFrame.size, transition: transition)
         }
+
+        if let fallbackView = _glassFallbackView {
+            let glassFrame = self.glassFrame(in: size)
+            let halfSide = min(glassFrame.width, glassFrame.height) / 2
+            let maxRadius: CGFloat
+            switch _glassFallback {
+            case .circle:
+                maxRadius = halfSide
+            case .plate, .none:
+                maxRadius = InterfaceStyle.current.controls.glassMaxCornerRadius
+            }
+            transition.updateFrame(view: fallbackView, frame: glassFrame)
+            fallbackView.layer?.cornerRadius = min(maxRadius, halfSide)
+        }
+    }
+
+    private func glassFrame(in size: NSSize) -> NSRect {
+        let gs = _glassSize ?? size
+        return NSMakeRect((size.width - gs.width) / 2, (size.height - gs.height) / 2, gs.width, gs.height)
     }
     
     private func currentOpticalOffset(_ image: CGImage) -> NSPoint {
@@ -442,6 +501,7 @@ open class ImageButton: Button {
     open override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
         _glassView?.updateLocalizationAndTheme(theme: theme)
+        applyGlassFallbackColors(theme)
     }
 
 }

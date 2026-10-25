@@ -2385,7 +2385,7 @@ public class ChatListRowView: TableRowView, RevealTableView {
                      current.scaleOnClick = true
                      current.set(image: TelegramThemeHooks.shared.image(.iconCommunityAvatarDropdown).precomposed(), for: .Normal)
                      current.sizeToFit()
-                     current.setGlassEffect(forceAppearance: .forceLight)
+                     current.setGlassEffect(forceAppearance: .forceLight, fallback: .circle)
                      current.set(handler: { [weak self] _ in
                          (self?.item as? ChatListRowItem)?.openCommunityPreview()
                      }, for: .Click)

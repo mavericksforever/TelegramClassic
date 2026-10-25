@@ -113,7 +113,7 @@ final class CrashRecoveryView: View {
         statusView.addSubview(progressView)
 
         configure(secondaryButton, title: continueTitle, font: .medium(13), color: palette.text)
-        secondaryButton.setGlassEffect(forceAppearance: glassAppearance)
+        secondaryButton.setGlassEffect(forceAppearance: glassAppearance, fallback: .plate)
         secondaryButton.setAccessibilityLabel(continueTitle)
         secondaryButton.set(handler: { [weak self] _ in
             self?.secondary?()
