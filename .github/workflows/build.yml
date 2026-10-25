@@ -13,6 +13,8 @@ jobs:
   build:
     runs-on: macos-26
     timeout-minutes: 360
+    permissions:
+      contents: write
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       CMAKE_POLICY_VERSION_MINIMUM: "3.5"
@@ -126,6 +128,28 @@ jobs:
         with:
           path: ${{ steps.package.outputs.zip }}
           archive: false
+
+      - name: Publish release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          PLIST="$RUNNER_TEMP/Telegram.xcarchive/Products/Applications/Telegram.app/Contents/Info.plist"
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST")
+          BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$PLIST")
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          : > "$NOTES"
+          if [ -n "${BEFORE//0/}" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" --jq '.commits[] | "- " + (.commit.message | split("\n")[0])' >> "$NOTES"
+            echo "" >> "$NOTES"
+            echo "https://github.com/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" >> "$NOTES"
+          fi
+          gh release create "v$VERSION-$BUILD-$GITHUB_RUN_NUMBER" "${{ steps.package.outputs.zip }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "TelegramClassic $VERSION ($BUILD) #$GITHUB_RUN_NUMBER" \
+            --notes-file "$NOTES"
 
       - if: failure()
         uses: actions/upload-artifact@v7
