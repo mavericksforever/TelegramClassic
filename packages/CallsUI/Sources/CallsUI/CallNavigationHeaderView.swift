@@ -150,6 +150,13 @@ public protocol CallStatusBarBackground : View {
 
 open class CallHeaderBasicView : NavigationHeaderView {
 
+    private static var style: CallHeaderStyle {
+        return CallHeaderStyle.current
+    }
+    private static let contentHeight: CGFloat = 35
+    public static var headerHeight: CGFloat {
+        return style.inset + contentHeight
+    }
 
     private let _backgroundView: CallStatusBarBackground
 
@@ -325,17 +332,17 @@ open class CallHeaderBasicView : NavigationHeaderView {
     public override func layout() {
         super.layout()
 
-        let hInset: CGFloat = 12
-        let topInset: CGFloat = 12
-        let contentHeight: CGFloat = 35
-        let contentRect = NSMakeRect(hInset, topInset, frame.width - hInset * 2, contentHeight)
-        backgroundView.frame = NSMakeRect(hInset, topInset, frame.width - hInset * 2, bounds.height - 10)
+        let style = Self.style
+        let inset = style.inset
+        let contentHeight = Self.contentHeight
+        let contentRect = NSMakeRect(inset, inset, frame.width - inset * 2, contentHeight)
+        backgroundView.frame = NSMakeRect(inset, inset, frame.width - inset * 2, contentHeight + style.barOverhang)
         container.frame = contentRect
-        container.layer?.cornerRadius = contentHeight / 2
+        container.layer?.cornerRadius = style.roundsBar ? contentHeight / 2 : 0
         container.layer?.masksToBounds = true
         muteControl.centerY(x:10)
         statusTextView.centerY(x: muteControl.frame.maxX + 6)
-        endCall.centerY(x: frame.width - endCall.frame.width - 20 - 12)
+        endCall.centerY(x: frame.width - endCall.frame.width - 20 - inset)
         _ = callInfo.sizeToFit(NSZeroSize, NSMakeSize(frame.width - statusTextView.frame.width - 60 - 20 - endCall.frame.width - 10, callInfo.frame.height), thatFit: false)
         
         let rect = container.focus(callInfo.frame.size)

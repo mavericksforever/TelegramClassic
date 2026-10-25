@@ -34,11 +34,17 @@ private func setPlayingRate(_ rate: Double, for controller: APController) {
 
 public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
 
-    private static let collapsedHeight: CGFloat = 52
-    private static let expandedHeight: CGFloat = 66
-    private static let containerInset: CGFloat = 12
+    private static var style: InlineAudioPlayerStyle {
+        return InlineAudioPlayerStyle.current
+    }
+    public static var collapsedHeight: CGFloat {
+        return style.collapsedHeight
+    }
+    private static var expandedHeight: CGFloat {
+        return collapsedHeight + expansionHeight
+    }
+    private static let expansionHeight: CGFloat = 14
     private static let hoverInset: CGFloat = 6
-    private static let cornerRadius: CGFloat = 20
 
 
     public struct ContextObject {
@@ -78,7 +84,8 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
     private let trackNameView:TextView = TextView()
     private let textViewContainer = Control()
     private let containerView:Control
-    private let glassView: LiquidGlassView
+    private let glassView: LiquidGlassView?
+    private let separator: View?
     private let playingSpeed: ImageButton = ImageButton()
     private let timeTooltip = View()
     private let timeTooltipText = TextView()
@@ -111,7 +118,8 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
         trackNameView.isSelectable = false
         trackNameView.userInteractionEnabled = false
         containerView = Control(frame: NSMakeRect(0, 0, 0, header.height))
-        glassView = LiquidGlassView(frame: .zero, cornerRadius: Self.cornerRadius, hasShadow: true, hasBorder: true, tintAlpha: 0.4)
+        glassView = Self.style.usesGlass ? LiquidGlassView(frame: .zero, cornerRadius: Self.style.cornerRadius, hasShadow: true, hasBorder: true, tintAlpha: 0.4) : nil
+        separator = Self.style.separatorColor != nil ? View() : nil
 
         super.init(header)
 
@@ -208,7 +216,12 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
         containerView.addSubview(playingSpeed)
         containerView.addSubview(volumeControl)
         containerView.addSubview(progressView)
-        addSubview(glassView)
+        if let glassView {
+            addSubview(glassView)
+        }
+        if let separator {
+            addSubview(separator)
+        }
         addSubview(containerView)
         timeTooltip.isEventLess = true
         timeTooltip.isHidden = true
@@ -295,7 +308,7 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
         
         self.layer?.masksToBounds = false
         containerView.layer?.masksToBounds = true
-        containerView.layer?.cornerRadius = Self.cornerRadius
+        containerView.layer?.cornerRadius = Self.style.cornerRadius
 
         updateLocalizationAndTheme(theme: theme)
 
@@ -353,7 +366,10 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
         progressView.fetchingColor = theme.colors.text.withAlphaComponent(0.3)
         progressView.previewColor = theme.colors.text.withAlphaComponent(0.25)
 
-        backgroundColor = .clear
+        backgroundColor = Self.style.background(theme)
+        if let separator, let separatorColor = Self.style.separatorColor {
+            separator.backgroundColor = separatorColor(theme)
+        }
         containerView.backgroundColor = .clear
         artistNameView?.backgroundColor = .clear
         timeTooltip.backgroundColor = theme.colors.background
@@ -760,14 +776,16 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
     public override func layout() {
         super.layout()
 
-        let hInset = Self.containerInset
-        let topInset = Self.containerInset
-        let contentHeight = frame.height - topInset
-        let controlsHeight: CGFloat = 40
-        let glassRect = NSMakeRect(hInset, topInset, max(0, frame.width - hInset * 2), contentHeight)
-        glassView.frame = glassRect
-        glassView.updateLayout(size: glassRect.size, transition: .immediate)
-        containerView.frame = glassRect
+        let inset = Self.style.containerInset
+        let contentHeight = frame.height - inset
+        let controlsHeight = Self.collapsedHeight - inset
+        let containerRect = NSMakeRect(inset, inset, max(0, frame.width - inset * 2), contentHeight)
+        if let glassView {
+            glassView.frame = containerRect
+            glassView.updateLayout(size: containerRect.size, transition: .immediate)
+        }
+        separator?.frame = NSMakeRect(0, frame.height - .borderSize, frame.width, .borderSize)
+        containerView.frame = containerRect
 
         func place(_ view: NSView, x: CGFloat) {
             view.setFrameOrigin(NSMakePoint(x, floor((controlsHeight - view.frame.height) / 2)))
@@ -779,7 +797,7 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
 
         place(dismiss, x: containerView.frame.width - 12 - dismiss.frame.width)
 
-        let progressRadius: CGFloat = 20
+        let progressInset = Self.style.cornerRadius
         let collapsedLineHeight: CGFloat = 2
         let expandedLineHeight: CGFloat = 6
         let progressLineHeight = collapsedLineHeight + (expandedLineHeight - collapsedLineHeight) * expansionProgress
@@ -787,7 +805,7 @@ public class InlineAudioPlayerView: NavigationHeaderView, APDelegate {
         let progressControlHeight = progressLineHeight + progressPadding * 2
         let progressY = contentHeight - progressControlHeight
         progressView.progressHeight = progressLineHeight
-        progressView.frame = NSMakeRect(progressRadius, progressY, max(0, containerView.frame.width - progressRadius * 2), progressControlHeight)
+        progressView.frame = NSMakeRect(progressInset, progressY, max(0, containerView.frame.width - progressInset * 2), progressControlHeight)
         progressView.cornerRadius = 0
         progressView.roundCorners = true
         progressView.containerBackground = theme.colors.grayIcon.withAlphaComponent(0.2 * expansionProgress)

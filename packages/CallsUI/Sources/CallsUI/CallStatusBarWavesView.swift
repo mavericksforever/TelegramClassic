@@ -237,7 +237,7 @@ final class CallStatusBarWavesView: View {
             self.overflowMask.frame = CGRect()
             return
         }
-        let cornerRadius = min(self.barHeight, size.width) / 2.0
+        let cornerRadius = CallStatusBarWavesView.cornerRadius(barHeight: self.barHeight, width: size.width)
         self.barMask.frame = CGRect(origin: CGPoint(), size: size)
         self.barMask.path = CGPath(roundedRect: CGRect(x: 0.0, y: 0.0, width: size.width, height: self.barHeight), cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
         self.overflowMask.frame = CGRect(x: 0.0, y: self.barHeight, width: size.width, height: max(0.0, size.height - self.barHeight))
@@ -245,11 +245,15 @@ final class CallStatusBarWavesView: View {
         self.overflowMask.locations = [0.0, edge * 0.5, edge, 1.0 - edge, 1.0 - edge * 0.5, 1.0].map { NSNumber(value: $0) }
     }
 
+    private static func cornerRadius(barHeight: CGFloat, width: CGFloat) -> CGFloat {
+        return CallHeaderStyle.current.roundsBar ? min(barHeight, width) / 2.0 : 0.0
+    }
+
     private static func edgeInset(barHeight: CGFloat, width: CGFloat) -> CGFloat {
         guard width > 0.0 else {
             return 0.0
         }
-        let cornerRadius = min(barHeight, width) / 2.0
+        let cornerRadius = CallStatusBarWavesView.cornerRadius(barHeight: barHeight, width: width)
         return min(cornerRadius / width, 0.25)
     }
 }

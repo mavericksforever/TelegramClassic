@@ -409,14 +409,14 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
         
         
         rightController = MajorNavigationController(ChatController.self, emptyController, context.window);
-        rightController.set(header: NavigationHeader(52, initializer: { header, contextObject, view -> (NavigationHeaderView, CGFloat) in
+        rightController.set(header: NavigationHeader(InlineAudioPlayerView.collapsedHeight, initializer: { header, contextObject, view -> (NavigationHeaderView, CGFloat) in
             let newView = view ?? InlineAudioPlayerView(header)
             newView.update(with: contextObject)
-            return (newView, 52)
+            return (newView, InlineAudioPlayerView.collapsedHeight)
         }))
         
         
-        rightController.set(callHeader: CallNavigationHeader(47, initializer: { header, contextObject, view -> (NavigationHeaderView, CGFloat) in
+        rightController.set(callHeader: CallNavigationHeader(CallHeaderBasicView.headerHeight, initializer: { header, contextObject, view -> (NavigationHeaderView, CGFloat) in
             let newView: NavigationHeaderView
             if contextObject is GroupCallContext {
                 if let view = view, view.className == GroupCallNavigationHeaderView.className() {
@@ -434,7 +434,7 @@ final class AuthorizedApplicationContext: NSObject, SplitViewDelegate {
                 fatalError("not supported")
             }
             newView.update(with: contextObject)
-            return (newView, 47)
+            return (newView, CallHeaderBasicView.headerHeight)
         }))
         
         window.rootViewController = rightController
