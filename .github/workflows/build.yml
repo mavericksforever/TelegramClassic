@@ -27,16 +27,21 @@ jobs:
           submodules: false
 
       - name: Check out submodules
+        env:
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
+          GIT_CONFIG_VALUE_0: "git@github.com:"
         run: |
           git submodule update --init --recursive --depth 1 --jobs 4 \
             submodules/Sparkle \
             submodules/libprisma \
             submodules/libtgvoip \
             submodules/regex \
-            submodules/rlottie \
             submodules/tg_owt \
             submodules/tgcalls \
-            submodules/tlottie
+            submodules/tlottie \
+            third-party/twidget \
+            third-party/widget-sandbox
           git submodule update --init --depth 1 submodules/telegram-ios
           git -C submodules/telegram-ios submodule update --init --depth 1 --jobs 4 \
             third-party/td/td \

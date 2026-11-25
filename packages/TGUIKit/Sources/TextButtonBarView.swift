@@ -107,6 +107,12 @@ open class TextButtonBarView: BarView {
 
     open override func fit(to maxWidth: CGFloat, transition: ContainedViewLayoutTransition = .immediate) -> CGFloat {
         let metrics = InterfaceStyle.current.barButton
+        if metrics.usesGlass, (currentTexts[.Normal] ?? "").isEmpty, button.imageView.image != nil {
+            let width = min(maxWidth, metrics.minSide)
+            _ = button.sizeToFit(NSZeroSize, NSMakeSize(width, metrics.minSide), thatFit: true, transition: transition)
+            _isFitted = true
+            return button.frame.width
+        }
         _isFitted = button.sizeToFit(NSMakeSize(metrics.textPadding, 0), NSMakeSize(maxWidth, metrics.minSide), thatFit: false, transition: transition)
         return button.frame.width + metrics.textMargin
     }

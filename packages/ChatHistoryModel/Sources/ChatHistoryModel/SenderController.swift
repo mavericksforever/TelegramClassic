@@ -172,7 +172,7 @@ public class Sender: NSObject {
         
         var input:ChatTextInputState = input
         
-        let emojis = Array(input.inputText.fixed.emojiString).map { String($0) }.compactMap {!$0.isEmpty ? $0 : nil}
+        let emojiText = input.inputText.fixed
         if input.attributes.isEmpty {
             input = ChatTextInputState(inputText: input.inputText.trimmed)
         }
@@ -281,10 +281,16 @@ public class Sender: NSObject {
                 return observe(preparedMessages |> mapToSignal { messages in
                     return enqueueMessages(account: context.account, peerId: peerId, messages: messages)
                 } |> mapToSignal { value in
+                    let emojis = emojiText.recentEmojiCandidates
+                    var saves: [Signal<Void, NoError>] = []
                     if !emojis.isEmpty {
-                        let es = saveUsedEmoji(emojis, postbox: context.account.postbox)
-                        let aes = saveAnimatedUsedEmoji(inlineMedia, postbox: context.account.postbox)
-                        return combineLatest(es, aes) |> map { _ in
+                        saves.append(saveUsedEmoji(emojis, postbox: context.account.postbox))
+                    }
+                    if !inlineMedia.isEmpty {
+                        saves.append(saveAnimatedUsedEmoji(inlineMedia, postbox: context.account.postbox))
+                    }
+                    if !saves.isEmpty {
+                        return combineLatest(saves) |> map { _ in
                             return value
                         }
                     }
@@ -480,12 +486,13 @@ public class Sender: NSObject {
             let asset = AVURLAsset(url: URL(fileURLWithPath: path))
             let video = asset.tracks(withMediaType: AVMediaType.video).first
             let audio = asset.tracks(withMediaType: AVMediaType.audio).first
+            let isEditedPhoto = EditedPhotoVideos.shared.contains(path: path)
             if let video = video {
                 var size = video.naturalSize.applying(video.preferredTransform)
                 size = NSMakeSize(floor(abs(size.width)), floor(abs(size.height)))
                 attrs.append(TelegramMediaFileAttribute.Video(duration: Double(CMTimeGetSeconds(asset.duration)), size: PixelDimensions(size), flags: [.supportsStreaming], preloadSize: nil, coverTime: nil, videoCodec: nil))
                 attrs.append(TelegramMediaFileAttribute.FileName(fileName: path.nsstring.lastPathComponent.nsstring.deletingPathExtension.appending(".mp4")))
-                if !inCollage {
+                if !inCollage, !isEditedPhoto {
                     if audio == nil, let size = fileSize(path), size < Int32(10 * 1024 * 1024), mime.hasSuffix("mp4") {
                         attrs.append(TelegramMediaFileAttribute.Animated)
                     }
@@ -494,7 +501,7 @@ public class Sender: NSObject {
                 if !mime.hasSuffix("mp4") {
                     attrs.append(.hintFileIsLarge)
                 }
-                if audio == nil {
+                if audio == nil, !isEditedPhoto {
                     attrs.append(.Animated)
                 }
                 return attrs

@@ -29,6 +29,7 @@ public class ChatInputAccessory: View {
     public var chatInteraction:ChatInteraction
 
     public private(set) var displayNode:ChatAccessoryModel?
+    private var panelStack = ChatInputAccessoryPanelStack<ChatInputAccessoryPanelKey>()
 
     private let dismiss:ImageButton = ImageButton()
     private let modeIcon: ImageButton? = ChatStyle.current.input.accessory.modeIconLeading != nil ? ImageButton() : nil
@@ -63,7 +64,7 @@ public class ChatInputAccessory: View {
             self?.chatInteraction.update({$0.updatedInterfaceState({$0.withUpdatedReplyMessageId(nil).withUpdatedDismissedForceReplyId($0.replyMessageId?.messageId)})})
         }
         dismissEdit = { [weak self] in
-            self?.chatInteraction.cancelEditing()
+            self?.chatInteraction.cancelEditing(userInitiated: true)
         }
         dismissUrlPreview = { [weak self] in
             self?.chatInteraction.update({ state -> ChatPresentationInterfaceState in
@@ -105,13 +106,37 @@ public class ChatInputAccessory: View {
         modeIcon?.isHidden = false
         progress?.isHidden = true
 
+        var availableKeys: [ChatInputAccessoryPanelKey] = []
+        if state.interfaceState.suggestPost != nil {
+            availableKeys.append(.suggestPost)
+        } else {
+            if let preview = state.urlPreview, state.interfaceState.composeDisableUrlPreview != preview.0,
+               let peer = state.peer, !peer.webUrlRestricted {
+                availableKeys.append(.urlPreview(preview.0, state.interfaceState.editState?.message.id))
+            }
+            if let edit = state.interfaceState.editState {
+                availableKeys.append(.edit(edit.message.id))
+            }
+            if !state.interfaceState.forwardMessages.isEmpty && !state.interfaceState.forwardMessageIds.isEmpty {
+                availableKeys.append(.forward(state.interfaceState.forwardMessageIds))
+            }
+            if let reply = state.interfaceState.replyMessageId {
+                availableKeys.append(.reply(reply.messageId))
+            }
+        }
+        let slotVisible: Bool
+        switch state.state {
+        case .normal, .editing, .recording: slotVisible = true
+        default: slotVisible = false
+        }
+        let selectedPanel = panelStack.update(availableKeys: slotVisible ? availableKeys : nil)
         displayNode = nil
         dismiss.removeAllHandlers()
         container.removeAllHandlers()
         container.removeAllStateHandlers()
 
 
-        if let data = state.interfaceState.suggestPost {
+        if selectedPanel?.kind == .suggestPost, let data = state.interfaceState.suggestPost {
             displayNode = ChatInputUIHooks.shared.makeSuggestPostPanelModel(data, context)
             modeIcon?.set(image: TelegramThemeHooks.shared.image(.iconInputSuggestPost).precomposed(theme.colors.accent), for: .Normal)
             dismiss.set(handler: { [weak self ] _ in
@@ -127,7 +152,7 @@ public class ChatInputAccessory: View {
             }
 
 
-        } else if let urlPreview = state.urlPreview, state.interfaceState.composeDisableUrlPreview != urlPreview.0, let peer = state.peer, !peer.webUrlRestricted {
+        } else if selectedPanel?.kind == .urlPreview, let urlPreview = state.urlPreview {
             displayNode = ChatInputUIHooks.shared.makeUrlPreviewModel(context, urlPreview.1, urlPreview.0)
             modeIcon?.set(image: theme.icons.chat_action_url_preview, for: .Normal)
             dismiss.set(handler: { [weak self ] _ in
@@ -189,7 +214,7 @@ public class ChatInputAccessory: View {
                 return menu
             }
 
-        } else if let editState = state.interfaceState.editState {
+        } else if selectedPanel?.kind == .edit, let editState = state.interfaceState.editState {
             displayNode = ChatInputUIHooks.shared.makeEditMessageModel(editState, context)
             modeIcon?.set(image: theme.icons.chat_action_edit_message, for: .Normal)
             modeIcon?.isHidden = editState.loadingState != .none
@@ -235,7 +260,7 @@ public class ChatInputAccessory: View {
                 return menu
             }
 
-        } else if !state.interfaceState.forwardMessages.isEmpty && !state.interfaceState.forwardMessageIds.isEmpty {
+        } else if selectedPanel?.kind == .forward {
             // Rich-text (AI-composed) messages keep the sender shown for non-premium users: hiding the
             // sender's name on such a forward is a Premium feature. When locked, force it off and show a
             // premium prompt on tap (see setHideAction); premium users hide as usual.
@@ -343,7 +368,7 @@ public class ChatInputAccessory: View {
             }, for: .Click)
 
 
-        } else if let replyMessageId = state.interfaceState.replyMessageId {
+        } else if selectedPanel?.kind == .reply, let replyMessageId = state.interfaceState.replyMessageId {
             displayNode = ReplyModel(message: nil, replyMessageId: replyMessageId.messageId, context: chatInteraction.interactionContext, replyMessage: state.interfaceState.replyMessage, quote: replyMessageId.quote, innerSubject: replyMessageId.innerSubject, dismissReply: dismissReply, forceClassic: true)
             modeIcon?.set(image: theme.icons.chat_action_reply_message, for: .Normal)
             dismiss.set(handler: { [weak self ] _ in

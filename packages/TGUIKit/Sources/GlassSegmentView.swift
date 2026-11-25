@@ -6,9 +6,16 @@ public final class GlassSegmentView: View {
     private let style = InterfaceStyle.current.segment
     private lazy var glass: LiquidGlassView? = style.usesGlass ? LiquidGlassView(frame: NSZeroRect, cornerRadius: GlassSegmentView.height / 2, hasShadow: true, hasBorder: true) : nil
     private let selectionView = View()
+    private var menuBlur: NSVisualEffectView?
+    private let menuVeil = View()
+    private let menuShadow = MenuShadowLayer()
+    private let menuRim = CALayer()
+    private let menuHairline = CALayer()
     private var labels: [TextView] = []
     private var currentTheme: PresentationTheme = presentation
     private var selectionPosition: CGFloat?
+    private lazy var lens = GlassSelectionLens(host: self, selectionView: selectionView)
+    private var lifted = false
 
     public private(set) var titles: [String] = []
     public private(set) var selectedIndex: Int?
@@ -17,6 +24,9 @@ public final class GlassSegmentView: View {
     public required init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         self.layer?.masksToBounds = false
+        if #available(macOS 14.0, *) {
+            self.clipsToBounds = false
+        }
         if let glass {
             self.addSubview(glass)
         }
@@ -26,6 +36,54 @@ public final class GlassSegmentView: View {
 
     public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    public var usesMenuMaterial: Bool = false {
+        didSet {
+            if oldValue != usesMenuMaterial {
+                refreshMenuMaterial()
+            }
+        }
+    }
+
+    public func refreshMenuMaterial() {
+        let menuMaterial = usesMenuMaterial && style.usesGlass
+        let fallback = menuMaterial && !(System.liquidGlass && System.liquidGlassAvailable) && System.blurEnabled
+        if fallback, menuBlur == nil {
+            let blur = NSVisualEffectView(frame: bounds)
+            blur.wantsLayer = true
+            blur.material = .menu
+            blur.blendingMode = .withinWindow
+            blur.state = .active
+            blur.layer?.cornerRadius = GlassSegmentView.height / 2
+            blur.layer?.masksToBounds = true
+            addSubview(blur, positioned: .above, relativeTo: glass)
+            menuVeil.autoresizingMask = [.width, .height]
+            menuVeil.frame = blur.bounds
+            blur.addSubview(menuVeil)
+            menuBlur = blur
+            menuRim.borderWidth = 1
+            menuHairline.borderWidth = 0.5
+            for layer in [menuRim, menuHairline] {
+                layer.cornerRadius = GlassSegmentView.height / 2
+                layer.zPosition = 1
+                self.layer?.addSublayer(layer)
+            }
+        } else if !fallback, let blur = menuBlur {
+            blur.removeFromSuperview()
+            menuBlur = nil
+            for layer in [menuRim, menuHairline] {
+                layer.removeFromSuperlayer()
+            }
+        }
+        glass?.isHidden = menuBlur != nil
+        if menuMaterial, menuShadow.superlayer == nil {
+            layer?.insertSublayer(menuShadow, at: 0)
+        } else if !menuMaterial {
+            menuShadow.removeFromSuperlayer()
+        }
+        applyTheme()
+        needsLayout = true
     }
 
     public var contentSize: NSSize {
@@ -43,7 +101,7 @@ public final class GlassSegmentView: View {
                 let label = TextView()
                 label.userInteractionEnabled = false
                 label.isSelectable = false
-                addSubview(label)
+                (lens.contentView ?? self).addSubview(label)
                 labels.append(label)
             }
         }
@@ -52,10 +110,16 @@ public final class GlassSegmentView: View {
             applyTheme()
         }
         self.selectionPosition = index.flatMap { CGFloat($0) }
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let animated = animated && !reduceMotion
+        if reduceMotion {
+            selectionView.layer?.removeAllAnimations()
+        }
         updateLayout(size: frame.size, transition: animated ? .animated(duration: 0.4, curve: .spring) : .immediate)
     }
 
     public func setSelection(position: CGFloat, animated: Bool) {
+        let animated = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         if !animated {
             selectionView.layer?.removeAllAnimations()
         }
@@ -73,6 +137,10 @@ public final class GlassSegmentView: View {
     private func applyTheme() {
         let colors = currentTheme.colors
         selectionView.backgroundColor = style.selectionColor(colors)
+        menuBlur?.appearance = NSAppearance.themed(isDark: colors.isDark)
+        menuVeil.backgroundColor = .menuFallbackVeil(isDark: colors.isDark)
+        menuRim.borderColor = NSColor.white.withAlphaComponent(colors.isDark ? 0.1 : 0.5).cgColor
+        menuHairline.borderColor = NSColor.black.withAlphaComponent(colors.isDark ? 0.85 : 0.2).cgColor
         for (index, (label, title)) in zip(labels, titles).enumerated() {
             let layout = TextViewLayout(.initialize(string: title, color: style.textColor(colors, index == selectedIndex), font: .medium(.title)))
             layout.measure(width: .greatestFiniteMagnitude)
@@ -80,7 +148,7 @@ public final class GlassSegmentView: View {
         }
     }
 
-    private var itemFrames: [NSRect] {
+    public var itemFrames: [NSRect] {
         var x: CGFloat = 0
         return labels.map { label in
             let frame = NSMakeRect(x, 0, label.frame.width + style.itemInset * 2, GlassSegmentView.height)
@@ -133,12 +201,15 @@ public final class GlassSegmentView: View {
         }
         var position = CGFloat(pressedIndex)
         var moved = false
-        if pressedIndex != selectedIndex {
+        lens.updateMode(content: labels)
+        lifted = lens.liftsOnPress
+        if pressedIndex != selectedIndex || lifted {
             setSelection(position: position, animated: true)
         }
         while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
             if next.type == .leftMouseUp {
                 let index = Int(position.rounded())
+                lifted = false
                 setSelection(position: CGFloat(index), animated: true)
                 if !moved || index != selectedIndex {
                     didSelect?(index)
@@ -160,9 +231,24 @@ public final class GlassSegmentView: View {
     }
 
     private func updateLayout(size: NSSize, transition: ContainedViewLayoutTransition) {
+        if lens.updateMode(content: labels) {
+            lifted = false
+        }
         if let glass {
             transition.updateFrame(view: glass, frame: size.bounds)
             glass.updateLayout(size: size, transition: transition)
+        }
+        if menuShadow.superlayer != nil {
+            menuShadow.update(shape: CGPath(roundedRect: size.bounds, cornerWidth: size.height / 2, cornerHeight: size.height / 2, transform: nil), in: size.bounds)
+        }
+        if let menuBlur {
+            transition.updateFrame(view: menuBlur, frame: size.bounds)
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            menuRim.frame = size.bounds
+            menuHairline.frame = size.bounds.insetBy(dx: -0.5, dy: -0.5)
+            menuHairline.cornerRadius = GlassSegmentView.height / 2 + 0.5
+            CATransaction.commit()
         }
 
         let frames = itemFrames
@@ -171,14 +257,17 @@ public final class GlassSegmentView: View {
             transition.updateFrame(view: label, frame: labelFrame)
         }
 
+        var selection: NSRect?
         if let position = selectionPosition, !frames.isEmpty {
+            let frame = selectionFrame(at: position, frames: frames)
             let selectionTransition: ContainedViewLayoutTransition = selectionView.isHidden ? .immediate : transition
-            let selectionFrame = self.selectionFrame(at: position, frames: frames)
             selectionView.isHidden = false
-            selectionView.layer?.cornerRadius = selectionFrame.height / 2
-            selectionTransition.updateFrame(view: selectionView, frame: selectionFrame)
+            selectionView.layer?.cornerRadius = frame.height / 2
+            selectionTransition.updateFrame(view: selectionView, frame: frame)
+            selection = frame
         } else {
             selectionView.isHidden = true
         }
+        lens.update(selection: selection, lifted: lifted, sources: labels, appearance: currentTheme.appearance, transition: transition)
     }
 }

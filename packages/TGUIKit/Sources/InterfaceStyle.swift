@@ -95,6 +95,7 @@ public struct InterfaceStyle: InterfaceStyleVariants {
 
         public let cornerRadius: CGFloat
         public let rowCornerRadius: CGFloat
+        public let usesNativeSurface: Bool
         public let clickAppearance: Appearance
         public let submenuAppearance: Appearance
         public let topPanelSpring: ScaleSpring
@@ -176,8 +177,9 @@ public struct InterfaceStyle: InterfaceStyleVariants {
             opaqueChrome: false
         ),
         menu: Menu(
-            cornerRadius: 18,
-            rowCornerRadius: 14,
+            cornerRadius: 12,
+            rowCornerRadius: 7,
+            usesNativeSurface: true,
             clickAppearance: .bubble,
             submenuAppearance: .bubble,
             topPanelSpring: ScaleSpring(from: 0.2, duration: 0.28, bounce: true)
@@ -247,6 +249,7 @@ public struct InterfaceStyle: InterfaceStyleVariants {
         menu: Menu(
             cornerRadius: 10,
             rowCornerRadius: .cornerRadius,
+            usesNativeSurface: false,
             clickAppearance: .spring(ScaleSpring(from: 0.1, duration: 0.2, bounce: false)),
             submenuAppearance: .fade,
             topPanelSpring: ScaleSpring(from: 0.1, duration: 0.2, bounce: false)

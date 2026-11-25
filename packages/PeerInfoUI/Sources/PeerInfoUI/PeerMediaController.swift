@@ -1,4 +1,5 @@
  import Cocoa
+ import AppAnalytics
  import TGUIKit
  import TelegramCore
  
@@ -76,8 +77,8 @@
  }
  
  public final class PeerMediaContainerView : View {
-    
-    private let actionsPanelView: MessageActionsPanel = makeMessageActionsPanel(frame: NSMakeRect(0,0,0, 50))
+
+    private let actionsPanelView: MessageActionsPanel = makeMessageActionsPanel(frame: NSMakeRect(0,0,0, 52))
     
     fileprivate let view: PeerMediaControllerView
     fileprivate var emptyView: PeerMediaEmptyRowView?
@@ -136,8 +137,8 @@
         
         view.frame = NSMakeRect(floorToScreenPixels(backingScaleFactor, (frame.width - blockWidth) / 2), sectionOffset, blockWidth, frame.height - sectionOffset)
         
-        let inset:CGFloat = view.isSelectionState ? 50 : 0
-        actionsPanelView.frame = NSMakeRect(0, frame.height - inset, frame.width, 50)
+        let inset:CGFloat = view.isSelectionState ? 54 : 0
+        actionsPanelView.frame = NSMakeRect(0, frame.height - inset, frame.width, 52)
         actionsPanelView.isHidden = !view.isSelectionState
         emptyView?.frame = bounds
     }
@@ -216,7 +217,7 @@
     func changeState(selectState:Bool, animated:Bool) {
         self.view.changeState(selectState: selectState, animated: animated)
         actionsPanelView.isHidden = !selectState
-        let inset:CGFloat = selectState ? 50 : 0
+        let inset:CGFloat = selectState ? 54 : 0
         actionsPanelView.change(pos: NSMakePoint(0, frame.height - inset), animated: animated)
     }
     
@@ -286,6 +287,8 @@
         } else if let view = self.mainView as? InputDataView {
             return view.tableView
         } else if let view = self.mainView as? StoryMediaView {
+            return view.tableView
+        } else if let view = self.mainView as? PeerMediaGifsView {
             return view.tableView
         }
         return nil
@@ -394,7 +397,7 @@
     }
     
     private var contentHeight: CGFloat {
-        return max(0, frame.height - (isSelectionState ? 50 : 0) - contentTop)
+        return max(0, frame.height - (isSelectionState ? 70 : 0) - contentTop)
     }
     
     private var tabsFrame: NSRect {
@@ -540,17 +543,19 @@
         CATransaction.commit()
     }
     
-    private func layoutPages() {
+    private func layoutPages(transition: ContainedViewLayoutTransition = .immediate) {
         let bounds = contentView.bounds
-        mainView?.frame = bounds.offsetBy(dx: swipeOffset, dy: 0)
+        if let mainView = mainView {
+            transition.updateFrame(view: mainView, frame: bounds.offsetBy(dx: swipeOffset, dy: 0))
+        }
         let visibleNeighbor = swipeOffset > 0 ? previousPage : (swipeOffset < 0 ? nextPage : nil)
         for view in contentView.subviews where view !== mainView {
             if view === visibleNeighbor {
                 view.alphaValue = 1
-                view.frame = bounds.offsetBy(dx: swipeOffset + (view === previousPage ? -bounds.width : bounds.width), dy: 0)
+                transition.updateFrame(view: view, frame: bounds.offsetBy(dx: swipeOffset + (view === previousPage ? -bounds.width : bounds.width), dy: 0))
             } else if view.layer?.animation(forKey: "position") == nil {
                 view.alphaValue = 0
-                view.frame = bounds
+                transition.updateFrame(view: view, frame: bounds)
                 if let mainView = mainView, let index = contentView.subviews.firstIndex(of: view), let mainIndex = contentView.subviews.firstIndex(of: mainView), index > mainIndex {
                     contentView.addSubview(view, positioned: .below, relativeTo: mainView)
                 }
@@ -650,9 +655,11 @@
     
     func changeState(selectState:Bool, animated:Bool) {
         assert(mainView != nil)
-    
+
         self.isSelectionState = selectState
-    
+        let transition: ContainedViewLayoutTransition = animated ? .animated(duration: 0.2, curve: .easeInOut) : .immediate
+        transition.updateFrame(view: contentView, frame: NSMakeRect(0, contentTop, frame.width, contentHeight))
+        layoutPages(transition: transition)
     }
     
     var activePanel: View {
@@ -822,17 +829,17 @@
                 let context = self.context
                 
                 if let cachedData = peerView.cachedData as? CachedChannelData, let peer = peerViewMainPeer(peerView), peer.isGroup || peer.isSupergroup || peer.isGigagroup {
-                    let onlineMemberCount:Signal<Int32?, NoError>
+                    let onlineMemberCount: Signal<(total: Int32?, recent: Int32)?, NoError>
                     if (cachedData.participantsSummary.memberCount ?? 0) > 200 {
-                        onlineMemberCount = context.peerChannelMemberCategoriesContextsManager.recentOnline(peerId: self.peerId)  |> map(Optional.init) |> deliverOnMainQueue
+                        onlineMemberCount = context.peerChannelMemberCategoriesContextsManager.recentOnline(peerId: self.peerId) |> map { value -> (total: Int32?, recent: Int32)? in (total: nil, recent: value) } |> deliverOnMainQueue
                     } else {
-                        onlineMemberCount = context.peerChannelMemberCategoriesContextsManager.recentOnlineSmall(peerId: self.peerId)  |> map(Optional.init) |> deliverOnMainQueue
+                        onlineMemberCount = context.peerChannelMemberCategoriesContextsManager.recentOnlineSmallCounts(peerId: self.peerId) |> map { value -> (total: Int32?, recent: Int32)? in (total: value.total, recent: value.recent) } |> deliverOnMainQueue
                     }
                     self.onlineMemberCountDisposable.set(onlineMemberCount.start(next: { [weak self] count in
                         guard let `self` = self else {
                             return
                         }
-                        let result = stringStatus(for: peerView, context: context, theme: PeerStatusStringTheme(titleFont: .medium(.title)), onlineMemberCount: count)
+                        let result = stringStatus(for: peerView, context: context, theme: PeerStatusStringTheme(titleFont: .medium(.title)), onlineMemberCount: count?.recent, memberCount: count?.total)
                         self.centerBarView.text = result.title
                         if self.mode == .members {
                             self.centerBarView.status = result.status
@@ -959,7 +966,10 @@
         }
     }
     
-     public init(context: Context, peerId:PeerId, threadInfo: ThreadInfo? = nil, isProfileIntended:Bool = false, externalSearchData: PeerMediaExternalSearchData? = nil, isBot: Bool, mode: PeerMediaCollectionMode? = nil, starGiftsProfile: ProfileGiftsContext? = nil) {
+     public init(context: Context, peerId:PeerId, threadInfo: ThreadInfo? = nil, isProfileIntended:Bool = false, externalSearchData: PeerMediaExternalSearchData? = nil, isBot: Bool, mode: PeerMediaCollectionMode? = nil, starGiftsProfile: ProfileGiftsContext? = nil, analyticsContext: AnalyticsContext? = nil) {
+        let origin = Analytics.shared.captureContext(engine: context.engine, peerId: peerId, inherited: analyticsContext ?? Analytics.shared.unresolvedContext())
+        let presentation = origin.beginPresentation()
+        defer { presentation.end() }
         self.externalSearchData = externalSearchData
         self.peerId = peerId
         self.mode = mode
@@ -978,6 +988,7 @@
             self.gifts = nil
         }
         self.interactions = ChatInteraction(chatLocation: .peer(peerId), context: context)
+        self.interactions.inheritedAnalyticsContext = origin
         self.mediaGrid = PeerMediaPhotosController(context, chatInteraction: interactions, threadInfo: threadInfo, peerId: peerId, tags: .photoOrVideo)
          if isBot {
              self.storyListContext = BotPreviewStoryListContext(account: context.account, engine: context.engine, peerId: peerId, language: nil, assumeEmpty: false)
@@ -993,13 +1004,13 @@
             self.archiveStoryListContext = nil
             self.archiveStories = nil
         }
-        self.saved = PeerMediaSavedMessagesController(context: context, peerId: peerId)
+        self.saved = PeerMediaSavedMessagesController(context: context, peerId: peerId, analyticsContext: origin)
          
         var updateTitle:((ExternalSearchMessages)->Void)? = nil
         
         if let external = externalSearchData {
             modeValue.set(external.initialMode)
-            let signal = (external.searchResult |> deliverOnMainQueue)
+            let signal = origin.preservingPresentation(external.searchResult |> deliverOnMainQueue)
             externalDisposable.set(signal.start(next: { result in
                 if let result = result {
                     updateTitle?(result)
@@ -1013,15 +1024,16 @@
         }
         self.listControllers = listControllers
         
-        self.members = PeerMediaGroupMembersController(context: context, peerId: peerId, editing: editing.get())
-        self.commonGroups = PeerInfoNavigationHooks.shared.makeGroupsInCommonControllerObserved(context, peerId)
+        self.members = PeerMediaGroupMembersController(context: context, peerId: peerId, editing: editing.get(), analyticsContext: origin)
+        self.commonGroups = PeerInfoNavigationHooks.shared.makeGroupsInCommonControllerObserved(context, peerId, analyticsContext: origin)
         self.gifs = PeerMediaPhotosController(context, chatInteraction: interactions, threadInfo: threadInfo, peerId: peerId, tags: .gif)
         self.stories = StoryMediaController(context: context, peerId: peerId, listContext: storyListContext)
-        self.similarChannels = SimilarChannelsController(context: context, peerId: peerId, recommendedChannels: nil)
-        self.similarBots = SimilarBotsController(context: context, peerId: peerId, recommendedBots: nil)
+        self.similarChannels = SimilarChannelsController(context: context, peerId: peerId, recommendedChannels: nil, analyticsContext: origin)
+        self.similarBots = SimilarBotsController(context: context, peerId: peerId, recommendedBots: nil, analyticsContext: origin)
 
          
         super.init(context)
+        self.inheritAnalyticsContext(origin)
          
          
          
@@ -1041,6 +1053,32 @@
          
         stories.parentController = self
         archiveStories?.parentController = self
+    }
+
+    public func inheritAnalyticsContext(_ inherited: AnalyticsContext) {
+        let source: AnalyticsContext
+        if let current = self.analyticsContext, current.isExcluded || !inherited.isExcluded {
+            source = current
+        } else {
+            source = inherited
+        }
+        let origin = Analytics.shared.captureContext(engine: context.engine, peerId: peerId, inherited: source)
+        if origin.isExcluded {
+            self.analyticsContext?.scope?.exclude()
+            self.interactions.inheritedAnalyticsContext?.scope?.exclude()
+        }
+        self.analyticsContext = origin
+        self.interactions.inheritedAnalyticsContext = origin
+        let optionalChildren: [ViewController?] = [archiveStories, savedMessages, gifts, pollsController]
+        let children: [ViewController] = [mediaGrid, gifs, stories, saved, members, commonGroups, similarChannels, similarBots] + listControllers + optionalChildren.compactMap { $0 }
+        for controller in children {
+            if origin.isExcluded { controller.analyticsContext?.scope?.exclude() }
+            if let current = controller.analyticsContext, current.isExcluded || (!origin.isExcluded && current.scope?.isValid != true) {
+                controller.analyticsContext = Analytics.shared.captureContext(engine: context.engine, peerId: peerId, inherited: current)
+            } else {
+                controller.analyticsContext = origin
+            }
+        }
     }
 
     var unableToHide: Bool {
@@ -1645,7 +1683,7 @@
             showModal(with: ShareModalController(ForwardMessagesObject(context, messages: messages)), for: context.window)
         }
         
-        let openChat:(PeerId, ChatFocusTarget?)->Void = { [weak self] id, focusTarget in
+        let openChat:(PeerId, ChatFocusTarget?, AnalyticsContext)->Void = { [weak self] id, focusTarget, analyticsContext in
             let location: ChatLocation
             let mode: ChatMode
             if let threadInfo = threadInfo, peerId == id {
@@ -1660,12 +1698,12 @@
                 location = .peer(id)
                 mode = .history
             }
-            PeerInfoUIHooks.shared.navigateToChatObserved(self?.navigationController, context, location, mode, focusTarget, threadInfo?.contextHolder)
+            PeerInfoUIHooks.shared.navigateToChatObserved(self?.navigationController, context, location, mode, focusTarget, threadInfo?.contextHolder, analyticsContext: analyticsContext)
 
         }
         
         interactions.focusMessageId = { _, focusMessageId, _ in
-            openChat(peerId, focusMessageId)
+            openChat(peerId, focusMessageId, Analytics.shared.unresolvedContext())
         }
         
         interactions.inlineAudioPlayer = { [weak self] controller in
@@ -1676,21 +1714,22 @@
             PeerInfoUIHooks.shared.showInlineAudioPlayer(controller, context, tableView, self?.currentTable)
         }
         
-        let openInfo: (PeerId, Bool, MessageId?, ChatInitialAction?) -> Void = { [weak self] peerId, toChat, postId, action in
+        let openInfo: (PeerId, Bool, MessageId?, ChatInitialAction?, AnalyticsContext) -> Void = { [weak self] peerId, toChat, postId, action, analyticsContext in
             if let strongSelf = self {
                 if toChat {
-                    openChat(peerId, .init(messageId: postId))
+                    openChat(peerId, .init(messageId: postId), analyticsContext)
                 } else {
                     if let navigation = strongSelf.navigationController {
-                        PeerInfoController<Context>.push(navigation: navigation, context: context, peerId: peerId, threadInfo: threadInfo)
+                        PeerInfoController<Context>.push(navigation: navigation, context: context, peerId: peerId, threadInfo: threadInfo, analyticsContext: analyticsContext)
                     }
                 }
             }
         }
         
         interactions.openInfo = { peerId, toChat, postId, action in
-            openInfo(peerId, toChat, postId, action)
+            openInfo(peerId, toChat, postId, action, Analytics.shared.unresolvedContext())
         }
+        interactions.openInfoWithAnalytics = openInfo
 
         interactions.deleteMessages = { [weak self] messageIds, _ in
             if let strongSelf = self, let peer = strongSelf.peer {
@@ -2057,6 +2096,9 @@
     }
     
     private func prepareController(for mode: PeerMediaCollectionMode) -> ViewController? {
+        let origin = Analytics.shared.captureContext(engine: context.engine, peerId: peerId, inherited: analyticsContext ?? Analytics.shared.unresolvedContext())
+        let presentation = origin.beginPresentation()
+        defer { presentation.end() }
         let bounds = self.genericView.view.bounds
         switch mode {
         case .members:
@@ -2131,7 +2173,7 @@
             return nil
         case .polls:
             if self.pollsController == nil {
-                self.pollsController = PeerMediaPollsController(context: self.context, peerId: self.peerId)
+                self.pollsController = PeerMediaPollsController(context: self.context, peerId: self.peerId, analyticsContext: origin)
             }
             if let controller = self.pollsController {
                 if !controller.isLoaded() {
@@ -2433,9 +2475,17 @@
             } else {
                 return super.escapeKeyAction()
             }
-        } else if interactions.presentation.state == .selecting {
+        } else {
+            return escapeSelection()
+        }
+    }
+
+    func escapeSelection() -> KeyHandlerResult {
+        if interactions.presentation.state == .selecting {
             interactions.update { $0.withoutSelectionState() }
             return .invoked
+        } else if let controller = currentController as? StoryMediaController<Context> {
+            return controller.escapeKeyAction()
         } else {
             return super.escapeKeyAction()
         }

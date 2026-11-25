@@ -10,7 +10,6 @@ struct EntertainmentStyle: InterfaceStyleVariants {
     let usesGlass: Bool
     let tabsAreaHeight: CGFloat
     let tabsOverlayContent: Bool
-    let sidebarGrowsWindow: Bool
     let sidebarSurface: SidebarSurface
     let sidebarInsets: NSEdgeInsets
 
@@ -35,7 +34,6 @@ struct EntertainmentStyle: InterfaceStyleVariants {
         usesGlass: true,
         tabsAreaHeight: 56,
         tabsOverlayContent: true,
-        sidebarGrowsWindow: true,
         sidebarSurface: .glass(cornerRadius: 20),
         sidebarInsets: NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 8)
     )
@@ -44,7 +42,6 @@ struct EntertainmentStyle: InterfaceStyleVariants {
         usesGlass: false,
         tabsAreaHeight: 50,
         tabsOverlayContent: false,
-        sidebarGrowsWindow: false,
         sidebarSurface: .column,
         sidebarInsets: NSEdgeInsets()
     )

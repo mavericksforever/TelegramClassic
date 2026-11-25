@@ -42,22 +42,11 @@ struct ChatListStyle: InterfaceStyleVariants {
         let edge: CGFloat
     }
 
-    enum RevealActionShape {
-        case captionedCircle
-        case filledTile
-    }
-
-    struct Reveal {
-        let actionShape: RevealActionShape
-        let actionInset: CGFloat
-    }
-
     let header: Header
     let folderTabs: FolderTabs
     let row: Row
     let archiveStrip: ArchiveStrip
     let downloads: Downloads
-    let reveal: Reveal
 
     static let liquidGlass = ChatListStyle(
         header: Header(
@@ -92,10 +81,6 @@ struct ChatListStyle: InterfaceStyleVariants {
         downloads: Downloads(
             floats: true,
             edge: 12
-        ),
-        reveal: Reveal(
-            actionShape: .captionedCircle,
-            actionInset: 6
         )
     )
 
@@ -132,10 +117,6 @@ struct ChatListStyle: InterfaceStyleVariants {
         downloads: Downloads(
             floats: false,
             edge: 0
-        ),
-        reveal: Reveal(
-            actionShape: .filledTile,
-            actionInset: 0
         )
     )
 }

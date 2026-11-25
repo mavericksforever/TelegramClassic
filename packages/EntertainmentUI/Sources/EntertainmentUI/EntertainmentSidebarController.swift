@@ -95,14 +95,11 @@ public final class EntertainmentSidebarView: View {
 public final class EntertainmentSidebarController: GenericViewController<EntertainmentSidebarView> {
     public static let paneWidth: CGFloat = 358
 
-    public static var sidebarGrowsWindow: Bool {
-        return EntertainmentStyle.current.sidebarGrowsWindow
-    }
-
     private let context: any AccountContextProtocol
     private let entertainment: ViewController
     private let isChat: (ViewController) -> Bool
     private let availabilityDisposable = MetaDisposable()
+    private let themeDisposable = MetaDisposable()
     private var canSendMessages: Bool?
 
     public var availabilityUpdated: () -> Void = {}
@@ -148,10 +145,14 @@ public final class EntertainmentSidebarController: GenericViewController<Enterta
 
     deinit {
         availabilityDisposable.dispose()
+        themeDisposable.dispose()
     }
 
     public override func viewDidLoad() {
         super.viewDidLoad()
+        themeDisposable.set(appearanceSignal.start(next: { [weak self] appearance in
+            self?.updateLocalizationAndTheme(theme: appearance.presentation)
+        }))
         readyOnce()
     }
 
