@@ -126,6 +126,10 @@ jobs:
           APP="$RUNNER_TEMP/Telegram.xcarchive/Products/Applications/Telegram.app"
           ZIP="$RUNNER_TEMP/TelegramClassic-${GITHUB_SHA::7}.zip"
           codesign --force --deep --sign - "$APP"
+          codesign --force --sign - --entitlements Telegram-Mac/WidgetEngineService/WidgetEngineService.entitlements "$APP/Contents/XPCServices/WidgetEngineService.xpc"
+          codesign --force --sign - --entitlements TelegramShare/TelegramShare.entitlements "$APP/Contents/PlugIns/TelegramShare.appex"
+          codesign --force --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
           ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
 
