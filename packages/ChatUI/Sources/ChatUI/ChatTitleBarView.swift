@@ -64,6 +64,23 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
     var titleHandler: (() -> Void)?
     var searchHandler: (() -> Void)?
     var callHandler: (() -> Void)?
+    var forumSidebarHandler: (() -> Void)?
+    var showsForumSidebarButton = false {
+        didSet {
+            if oldValue != showsForumSidebarButton {
+                forumSidebarButton.isHidden = !showsForumSidebarButton
+                updateTitle(true, presentation: chatInteraction.presentation)
+                needsLayout = true
+            }
+        }
+    }
+    var isForumSidebarOpen = false {
+        didSet {
+            if oldValue != isForumSidebarOpen {
+                updateForumSidebarButtonImage()
+            }
+        }
+    }
 
     var avatarStoryControl: AvatarStoryControl {
         return avatarControl
@@ -72,6 +89,7 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
     private let activities:ChatActivitiesModel
     private let searchButton:ImageButton = ImageButton()
     private let callButton:ImageButton = ImageButton()
+    private let forumSidebarButton = ImageButton()
     private let chatInteraction:ChatInteraction
     private let avatarControl:AvatarStoryControl = AvatarStoryControl(font: .avatar(12), size: NSMakeSize(36, 36))
     private var liveStreamView: ImageView?
@@ -263,6 +281,13 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         activities.view?.isHidden = true
         callButton.isHidden = true
         addSubview(callButton)
+
+        forumSidebarButton.disableActions()
+        forumSidebarButton.set(handler: { [weak self] _ in
+            self?.forumSidebarHandler?()
+        }, for: .Click)
+        forumSidebarButton.isHidden = true
+        addSubview(forumSidebarButton)
         
         avatarControl.setFrameSize(36,36)
         photoContainer.addSubview(avatarControl)
@@ -309,6 +334,13 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
     func updateSearchButton(hidden: Bool, animated: Bool) {
         searchButton.isHidden = hidden
         needsLayout = true
+    }
+
+    private func updateForumSidebarButtonImage() {
+        let image = ChatForumSidebarToggle.image(isOpen: isForumSidebarOpen)
+        forumSidebarButton.set(image: image.precomposed(theme.colors.accentIcon, flipHorizontal: true), for: .Normal)
+        forumSidebarButton.setFrameSize(searchButton.frame.size)
+        forumSidebarButton.setAccessibilityValue(ChatForumSidebarToggle.accessibilityValue(isOpen: isForumSidebarOpen))
     }
     
     func contentInteractionView(for stableId: AnyHashable, animateIn: Bool) -> NSView? {
@@ -420,8 +452,11 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
             liveStreamView.centerX(y: photoContainer.frame.height - liveStreamView.frame.height)
         }
         
-        searchButton.centerY(x:frame.width - searchButton.frame.width)
-        callButton.centerY(x: searchButton.isHidden ? frame.width - callButton.frame.width : searchButton.frame.minX - callButton.frame.width - 20)
+        var actionsTrailing = frame.width
+        for button in [searchButton, forumSidebarButton, callButton] where !button.isHidden {
+            button.centerY(x: actionsTrailing - button.frame.width)
+            actionsTrailing = button.frame.minX - 20
+        }
         
         if hasPhoto {
             activities.view?.setFrameOrigin(photoContainer.frame.maxX + 8, 25)
@@ -457,13 +492,14 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
     }
 
     override var inset:CGFloat {
-        return 36 + 50 + (callButton.isHidden ? 10 : callButton.frame.width + 35) + (statusControl?.frame.width ?? 0) + ChatTitleLeadingIcons.badgeInset(leftStatusControl?.frame.width)
+        return 36 + 50 + (callButton.isHidden ? 10 : callButton.frame.width + 35) + (forumSidebarButton.isHidden ? 0 : forumSidebarButton.frame.width + 20) + (statusControl?.frame.width ?? 0) + ChatTitleLeadingIcons.badgeInset(leftStatusControl?.frame.width)
     }
     
     
 
 
     func updateStatus(_ force:Bool = false, presentation: ChatPresentationInterfaceState) {
+        forumSidebarButton.setAccessibilityLabel(ChatForumSidebarToggle.accessibilityLabel(presentation, accountPeerId: chatInteraction.interactionContext.peerId))
 
         if presentation.reportMode != nil {
             if self.reportPlaceholder == nil {
@@ -750,7 +786,8 @@ class ChatTitleBarView: TitledBarView, InteractionContentViewProtocol {
         searchButton.set(image: theme.icons.chatSearchActive, for: .Highlight)
 
         _ = searchButton.sizeToFit()
-        
+        updateForumSidebarButtonImage()
+
         closeButton.set(image: theme.icons.chatNavigationBack, for: .Normal)
         let inputActivities = self.inputActivities
         self.inputActivities = inputActivities

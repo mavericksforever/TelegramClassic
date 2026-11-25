@@ -667,9 +667,9 @@ final class ChatHeaderBubblesView: View, ChatTopChrome {
 
     private func updateForumSidebarButtonImage() {
         let palette = (currentChatTheme ?? theme).colors
-        let image = ChatUIHooks.shared.forumSidebarToggleImage?(isForumSidebarOpen) ?? TelegramThemeHooks.shared.image(.iconMonoforumToggle)
+        let image = ChatForumSidebarToggle.image(isOpen: isForumSidebarOpen)
         forumSidebarButton.set(image: image.precomposed(palette.text, flipHorizontal: true), for: .Normal)
-        forumSidebarButton.setAccessibilityValue(isForumSidebarOpen ? strings().voiceOverCommonSelected : strings().voiceOverCommonNotSelected)
+        forumSidebarButton.setAccessibilityValue(ChatForumSidebarToggle.accessibilityValue(isOpen: isForumSidebarOpen))
     }
 
     private func applyCallButtonImage() {
@@ -695,7 +695,7 @@ final class ChatHeaderBubblesView: View, ChatTopChrome {
     }
 
     func updatePresentation(_ presentation: ChatPresentationInterfaceState, force: Bool = false) {
-        forumSidebarButton.setAccessibilityLabel(presentation.chatLocation.peerId == chatInteraction.interactionContext.peerId || presentation.isMonoforum ? localizedString("Chat.Sidebar.ShowChats") : strings().chatListTopicsTag)
+        forumSidebarButton.setAccessibilityLabel(ChatForumSidebarToggle.accessibilityLabel(presentation, accountPeerId: chatInteraction.interactionContext.peerId))
         updateStatusText(presentation: presentation, force: force)
         updatePeerExtras(presentation: presentation, animated: false)
         applyCallButtonImage()

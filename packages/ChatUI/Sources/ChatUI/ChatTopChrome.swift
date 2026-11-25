@@ -13,6 +13,20 @@ enum ChatHeaderMenuMode {
     case done
 }
 
+enum ChatForumSidebarToggle {
+    static func image(isOpen: Bool) -> NSImage {
+        return ChatUIHooks.shared.forumSidebarToggleImage?(isOpen) ?? TelegramThemeHooks.shared.image(.iconMonoforumToggle)
+    }
+
+    static func accessibilityValue(isOpen: Bool) -> String {
+        return isOpen ? strings().voiceOverCommonSelected : strings().voiceOverCommonNotSelected
+    }
+
+    static func accessibilityLabel(_ presentation: ChatPresentationInterfaceState, accountPeerId: PeerId) -> String {
+        return presentation.chatLocation.peerId == accountPeerId || presentation.isMonoforum ? localizedString("Chat.Sidebar.ShowChats") : strings().chatListTopicsTag
+    }
+}
+
 protocol ChatTopChrome: AnyObject, InteractionContentViewProtocol {
     var backHandler: (() -> Void)? { get set }
     var avatarHandler: (() -> Void)? { get set }
@@ -22,6 +36,9 @@ protocol ChatTopChrome: AnyObject, InteractionContentViewProtocol {
     var callHandler: (() -> Void)? { get set }
     var doneHandler: (() -> Void)? { get set }
     var menuContextMenu: (() -> ContextMenu?)? { get set }
+    var forumSidebarHandler: (() -> Void)? { get set }
+    var showsForumSidebarButton: Bool { get set }
+    var isForumSidebarOpen: Bool { get set }
 
     var connectionStatus: ConnectionStatus { get set }
     var inputActivities: (PeerId, [(Peer, PeerInputActivity)])? { get set }
@@ -70,6 +87,18 @@ final class NavigationBarChatTopChrome: ChatTopChrome {
     }
     var doneHandler: (() -> Void)?
     var menuContextMenu: (() -> ContextMenu?)?
+    var forumSidebarHandler: (() -> Void)? {
+        get { return titleBar.forumSidebarHandler }
+        set { titleBar.forumSidebarHandler = newValue }
+    }
+    var showsForumSidebarButton: Bool {
+        get { return titleBar.showsForumSidebarButton }
+        set { titleBar.showsForumSidebarButton = newValue }
+    }
+    var isForumSidebarOpen: Bool {
+        get { return titleBar.isForumSidebarOpen }
+        set { titleBar.isForumSidebarOpen = newValue }
+    }
 
     var connectionStatus: ConnectionStatus {
         get { return titleBar.connectionStatus }

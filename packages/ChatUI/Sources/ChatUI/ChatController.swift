@@ -330,6 +330,7 @@ public class ChatControllerView : View, ChatInputDelegate {
         return gap
     }
     let inputContextHelper:InputContextHelper
+    private let topChrome: ChatTopChrome
     let bubblesView: ChatHeaderBubblesView?
     private(set) var state:ChatControllerViewState = .visible
     private var searchInteractions:ChatSearchInteractions!
@@ -348,7 +349,7 @@ public class ChatControllerView : View, ChatInputDelegate {
     private var monoforumHorizontalData: ChatHeaderState.MonoforumData?
     private(set) var forumSidebarOpen = false {
         didSet {
-            bubblesView?.isForumSidebarOpen = forumSidebarOpen
+            topChrome.isForumSidebarOpen = forumSidebarOpen
         }
     }
     private var forumSidebarMode = false
@@ -506,9 +507,10 @@ public class ChatControllerView : View, ChatInputDelegate {
         return found
     }
     
-    required init(frame frameRect: NSRect, chatInteraction:ChatInteraction, bubblesView: ChatHeaderBubblesView?) {
+    required init(frame frameRect: NSRect, chatInteraction:ChatInteraction, topChrome: ChatTopChrome) {
         self.chatInteraction = chatInteraction
-        self.bubblesView = bubblesView
+        self.topChrome = topChrome
+        self.bubblesView = topChrome as? ChatHeaderBubblesView
         header = ChatHeaderController(chatInteraction)
 
 
@@ -1485,16 +1487,16 @@ public class ChatControllerView : View, ChatInputDelegate {
             monoforum_VerticalView = nil
             monoforumHorizontalData = nil
             forumSidebarMode = true
-            bubblesView?.forumSidebarHandler = { [weak self] in
+            topChrome.forumSidebarHandler = { [weak self] in
                 guard let self else { return }
                 self.setForumSidebarOpen(!self.forumSidebarOpen)
             }
-            bubblesView?.showsForumSidebarButton = true
+            topChrome.showsForumSidebarButton = true
             updateFrame(frame, transition: animated ? .animated(duration: 0.2, curve: .easeOut) : .immediate)
             return
         }
-        bubblesView?.showsForumSidebarButton = false
-        bubblesView?.forumSidebarHandler = nil
+        topChrome.showsForumSidebarButton = false
+        topChrome.forumSidebarHandler = nil
         forumSidebarMode = false
         setForumSidebarOpen(false)
         if let state {
@@ -13300,7 +13302,7 @@ open class ChatController<Context: AccountContextProtocol>: TelegramGenericViewC
     }
     
     public override func initializer() -> ChatControllerView {
-        return ChatControllerView(frame: NSMakeRect(_frameRect.minX, _frameRect.minY, _frameRect.width, _frameRect.height - self.bar.height), chatInteraction:chatInteraction, bubblesView: topChrome as? ChatHeaderBubblesView);
+        return ChatControllerView(frame: NSMakeRect(_frameRect.minX, _frameRect.minY, _frameRect.width, _frameRect.height - self.bar.height), chatInteraction:chatInteraction, topChrome: topChrome);
     }
     
     public override func requestUpdateCenterBar() {
