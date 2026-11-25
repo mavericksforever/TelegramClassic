@@ -1264,7 +1264,7 @@ public class ChatListRowView: TableRowView {
 
     
     private lazy var reveal: RevealOptionsController = {
-        let controller = RevealOptionsController(hostView: self, configuration: .chatList, animationFactory: { animation, color, size in
+        let controller = RevealOptionsController(hostView: self, configuration: ChatListStyle.current.reveal, animationFactory: { animation, color, size in
             return ChatListRevealAnimationView(animation: animation, color: color, size: size)
         })
         controller.offsetUpdated = { [weak self] offset in
@@ -1704,7 +1704,8 @@ public class ChatListRowView: TableRowView {
     }
 
     private func updateRevealSurfaceStyle() {
-        reveal.surface = RevealOptionsSurface(color: theme.chatList.activeDraggingBackgroundColor, cornerRadius: 14, frame: containerView.bounds.insetBy(dx: 3, dy: 3))
+        let row = ChatListStyle.current.row
+        reveal.surface = RevealOptionsSurface(color: theme.chatList.activeDraggingBackgroundColor, cornerRadius: row.selectionCornerRadius, frame: containerView.bounds.insetBy(dx: row.selectionInset, dy: row.selectionInset))
     }
     
     

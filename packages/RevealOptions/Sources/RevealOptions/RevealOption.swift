@@ -28,6 +28,7 @@ public struct RevealOptionsConfiguration {
     public enum Sizing {
         case circles
         case pills
+        case tiles
     }
 
     public var scale: CGFloat
@@ -47,6 +48,7 @@ public struct RevealOptionsConfiguration {
     }
 
     public static let chatList = RevealOptionsConfiguration()
+    public static let chatListTiles = RevealOptionsConfiguration(sizing: .tiles)
     public static let news = RevealOptionsConfiguration(sizing: .pills)
 }
 
@@ -150,6 +152,12 @@ struct RevealOptionLayoutMetrics {
         } else {
             return RevealOptionLayoutMetrics(scale: scale, shapeSize: NSMakeSize(regularShapeSide, regularShapeSide), slotWidth: 60 * scale, titleWidth: 60 * scale, iconMaxSide: 40 * scale, cornerRadius: 25 * scale, expandedIconInset: 20 * scale, spacing: 10 * scale, edgeInset: 10 * scale)
         }
+    }
+
+    static let tileInset: CGFloat = 10
+
+    static func tiles(height: CGFloat) -> RevealOptionLayoutMetrics {
+        return RevealOptionLayoutMetrics(scale: 1, iconScale: 1, shapeSize: NSMakeSize(height, height), slotWidth: height, titleWidth: height, iconMaxSide: max(0, height - tileInset * 2), cornerRadius: 0, expandedIconInset: 0, spacing: 0, edgeInset: 0)
     }
 
     func withTitleWidths(_ widths: [CGFloat]) -> RevealOptionLayoutMetrics {

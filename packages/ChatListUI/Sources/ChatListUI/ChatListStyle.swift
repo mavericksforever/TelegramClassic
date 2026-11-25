@@ -1,6 +1,7 @@
 import Cocoa
 import TGUIKit
 import TelegramTheme
+import RevealOptions
 
 struct ChatListStyle: InterfaceStyleVariants {
 
@@ -47,6 +48,7 @@ struct ChatListStyle: InterfaceStyleVariants {
     let row: Row
     let archiveStrip: ArchiveStrip
     let downloads: Downloads
+    let reveal: RevealOptionsConfiguration
 
     static let liquidGlass = ChatListStyle(
         header: Header(
@@ -81,7 +83,8 @@ struct ChatListStyle: InterfaceStyleVariants {
         downloads: Downloads(
             floats: true,
             edge: 12
-        )
+        ),
+        reveal: .chatList
     )
 
     static let classic = ChatListStyle(
@@ -117,6 +120,7 @@ struct ChatListStyle: InterfaceStyleVariants {
         downloads: Downloads(
             floats: false,
             edge: 0
-        )
+        ),
+        reveal: .chatListTiles
     )
 }

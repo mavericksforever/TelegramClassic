@@ -24,6 +24,7 @@ final class RevealOptionView: View {
     private let animationFactory: RevealOptionAnimationFactory?
     private let enableAnimations: Bool
     private let displaysTitleInsidePill: Bool
+    private let isTile: Bool
     private let scale: CGFloat
 
     private var isAnimationTriggered = false
@@ -43,8 +44,9 @@ final class RevealOptionView: View {
             displaysTitleInsidePill = false
         }
         self.displaysTitleInsidePill = displaysTitleInsidePill
+        self.isTile = configuration.sizing == .tiles
         let font: NSFont = displaysTitleInsidePill ? configuration.pillTitleFont : configuration.titleFont
-        self.titleString = .initialize(string: option.title, color: displaysTitleInsidePill ? option.iconColor : option.textColor, font: font)
+        self.titleString = .initialize(string: option.title, color: displaysTitleInsidePill || self.isTile ? option.iconColor : option.textColor, font: font)
         super.init(frame: .zero)
 
         self.titleView.isEventLess = true
@@ -193,7 +195,66 @@ final class RevealOptionView: View {
         self.titleView.image = context.makeImage()
     }
 
+    private func updateTileLayout(isLeft: Bool, metrics: RevealOptionLayoutMetrics, revealProgress: CGFloat, expandedProgress: CGFloat, isExpanded: Bool) {
+        let bounds = self.bounds
+        let backingScaleFactor = self.backingScaleFactor
+        if backingScaleFactor != self.titleScale {
+            self.updateTitleImage(scale: backingScaleFactor)
+        }
+        for view in [self.backgroundView, self.highlightView, self.iconClipView] {
+            view.frame = bounds
+            view.layer?.cornerRadius = metrics.cornerRadius
+        }
+        self.isExpanded = isExpanded
+        self.contentScale = 1
+        self.alphaValue = 1
+        self.applyContentTransform(scale: 1)
+
+        let outerX: CGFloat = isLeft ? 0 : bounds.width - metrics.slotWidth
+        let innerX: CGFloat = isLeft ? bounds.width - metrics.slotWidth : 0
+        let slot = NSMakeRect(outerX + (innerX - outerX) * expandedProgress, 0, metrics.slotWidth, bounds.height)
+        let titleSize = self.titleSize
+        self.titleView.alphaValue = 1
+        self.titleView.frame = NSMakeRect(floorToScreenPixels(backingScaleFactor, slot.midX - titleSize.width / 2), bounds.height - titleSize.height - RevealOptionLayoutMetrics.tileInset, titleSize.width, titleSize.height)
+
+        switch self.option.icon {
+        case let .animation(animation):
+            let side = floorToScreenPixels(backingScaleFactor, min(metrics.animationSide * animation.scale, metrics.iconMaxSide))
+            let iconFrame = NSMakeRect(floorToScreenPixels(backingScaleFactor, slot.midX - side / 2), floorToScreenPixels(backingScaleFactor, slot.midY - side / 2), side, side)
+            self.updateAnimationView(size: iconFrame.size, animation: animation)
+            self.iconContainer.frame = iconFrame
+            if self.enableAnimations {
+                if revealProgress >= animationTriggerProgress {
+                    self.setAnimationTriggered(true)
+                } else if revealProgress <= interactiveAnimationResetProgress {
+                    self.setAnimationTriggered(false)
+                }
+            }
+        case let .image(image):
+            let size = self.fittedSize(image, maxSide: metrics.iconMaxSide)
+            let iconFrame = NSMakeRect(floorToScreenPixels(backingScaleFactor, slot.midX - size.width / 2), floorToScreenPixels(backingScaleFactor, slot.midY - size.height / 2), size.width, size.height)
+            self.iconContainer.frame = iconFrame
+            self.imageView?.frame = size.bounds
+        case .none:
+            break
+        }
+    }
+
+    private func fittedSize(_ image: CGImage, maxSide: CGFloat) -> NSSize {
+        let size = image.backingSize
+        let imageMaxSide = max(size.width, size.height)
+        guard imageMaxSide > maxSide else {
+            return size
+        }
+        let imageScale = maxSide / imageMaxSide
+        return NSMakeSize(floorToScreenPixels(self.backingScaleFactor, size.width * imageScale), floorToScreenPixels(self.backingScaleFactor, size.height * imageScale))
+    }
+
     func updateLayout(isLeft: Bool, isPrimary: Bool, metrics: RevealOptionLayoutMetrics, revealProgress: CGFloat, expandedProgress: CGFloat, isStretched: Bool, isExpanded: Bool, motionScale: CGFloat, motionOpacity: CGFloat) {
+        if self.isTile {
+            self.updateTileLayout(isLeft: isLeft, metrics: metrics, revealProgress: revealProgress, expandedProgress: expandedProgress, isExpanded: isExpanded)
+            return
+        }
         let bounds = self.bounds
         let backingScaleFactor = self.backingScaleFactor
         if self.backingScaleFactor != self.titleScale {
@@ -273,12 +334,7 @@ final class RevealOptionView: View {
                 }
             }
         case let .image(image):
-            var fittedSize = image.backingSize
-            let imageMaxSide = max(fittedSize.width, fittedSize.height)
-            if imageMaxSide > metrics.iconMaxSide {
-                let imageScale = metrics.iconMaxSide / imageMaxSide
-                fittedSize = NSMakeSize(floorToScreenPixels(backingScaleFactor, fittedSize.width * imageScale), floorToScreenPixels(backingScaleFactor, fittedSize.height * imageScale))
-            }
+            let fittedSize = self.fittedSize(image, maxSide: metrics.iconMaxSide)
             let iconFrame = NSMakeRect(floorToScreenPixels(backingScaleFactor, iconCenterX - fittedSize.width / 2), floorToScreenPixels(backingScaleFactor, iconCenterY - fittedSize.height / 2), fittedSize.width, fittedSize.height)
             self.iconContainer.frame = iconFrame.offsetBy(dx: -backgroundFrame.minX, dy: -backgroundFrame.minY)
             self.imageView?.frame = NSMakeRect(0, 0, fittedSize.width, fittedSize.height)

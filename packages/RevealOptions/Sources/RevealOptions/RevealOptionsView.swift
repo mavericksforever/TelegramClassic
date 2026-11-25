@@ -57,16 +57,20 @@ final class RevealOptionsView: View {
             return currentMetrics.metrics
         }
         let hasVisualIcons = self.options.contains(where: { $0.icon.hasVisualIcon })
-        var metrics = RevealOptionLayoutMetrics.metrics(for: height, hasVisualIcons: hasVisualIcons, scale: self.configuration.scale, titleFont: self.configuration.titleFont)
-        metrics.iconScale = self.configuration.iconScale
+        let maxTitleWidth = self.optionViews.reduce(0) { result, view in
+            return max(result, view.titleWidthForGroupPillSizing)
+        }
         let updatedMetrics: RevealOptionLayoutMetrics
-        if hasVisualIcons, self.configuration.sizing == .circles {
-            updatedMetrics = metrics.withTitleWidths(self.optionViews.map(\.titleWidth))
+        if self.configuration.sizing == .tiles {
+            updatedMetrics = RevealOptionLayoutMetrics.tiles(height: height).withGroupTitleWidth(maxTitleWidth)
         } else {
-            let maxTitleWidth = self.optionViews.reduce(0) { result, view in
-                return max(result, view.titleWidthForGroupPillSizing)
+            var metrics = RevealOptionLayoutMetrics.metrics(for: height, hasVisualIcons: hasVisualIcons, scale: self.configuration.scale, titleFont: self.configuration.titleFont)
+            metrics.iconScale = self.configuration.iconScale
+            if hasVisualIcons, self.configuration.sizing == .circles {
+                updatedMetrics = metrics.withTitleWidths(self.optionViews.map(\.titleWidth))
+            } else {
+                updatedMetrics = metrics.withGroupTitleWidth(maxTitleWidth)
             }
-            updatedMetrics = metrics.withGroupTitleWidth(maxTitleWidth)
         }
         self.currentMetrics = (height, updatedMetrics)
         return updatedMetrics
