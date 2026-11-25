@@ -101,6 +101,15 @@ public struct InterfaceStyle: InterfaceStyleVariants {
         public let topPanelSpring: ScaleSpring
     }
 
+    public struct TabBar {
+        public enum Placement {
+            case floating
+            case docked(height: CGFloat)
+        }
+
+        public let placement: Placement
+    }
+
     public struct Segment {
         public enum Selection {
             case insetFromItem(CGFloat)
@@ -122,6 +131,7 @@ public struct InterfaceStyle: InterfaceStyleVariants {
     public let split: Split
     public let modal: Modal
     public let menu: Menu
+    public let tabBar: TabBar
     public let segment: Segment
     public let popoverCornerRadius: CGFloat
     public let fadesNavigationTransitions: Bool
@@ -183,6 +193,9 @@ public struct InterfaceStyle: InterfaceStyleVariants {
             clickAppearance: .bubble,
             submenuAppearance: .bubble,
             topPanelSpring: ScaleSpring(from: 0.2, duration: 0.28, bounce: true)
+        ),
+        tabBar: TabBar(
+            placement: .floating
         ),
         segment: Segment(
             usesGlass: true,
@@ -253,6 +266,9 @@ public struct InterfaceStyle: InterfaceStyleVariants {
             clickAppearance: .spring(ScaleSpring(from: 0.1, duration: 0.2, bounce: false)),
             submenuAppearance: .fade,
             topPanelSpring: ScaleSpring(from: 0.1, duration: 0.2, bounce: false)
+        ),
+        tabBar: TabBar(
+            placement: .docked(height: 50)
         ),
         segment: Segment(
             usesGlass: false,

@@ -18,12 +18,12 @@ struct FloatingTabBarLayout {
         return NSMakeRect(floorToScreenPixels((size.width - width) / 2), max(0, size.height - height - bottomGap), width, height)
     }
 
-    init(size: NSSize, count: Int) {
-        let width = max(0, size.width - Self.innerInset * 2)
+    init(size: NSSize, count: Int, insets: NSEdgeInsets) {
+        let width = max(0, size.width - insets.left - insets.right)
         itemFrames = (0 ..< max(0, count)).map { index in
-            let left = floorToScreenPixels(Self.innerInset + width * CGFloat(index) / CGFloat(count))
-            let right = floorToScreenPixels(Self.innerInset + width * CGFloat(index + 1) / CGFloat(count))
-            return NSMakeRect(left, Self.innerInset, right - left, max(0, size.height - Self.innerInset * 2))
+            let left = floorToScreenPixels(insets.left + width * CGFloat(index) / CGFloat(count))
+            let right = floorToScreenPixels(insets.left + width * CGFloat(index + 1) / CGFloat(count))
+            return NSMakeRect(left, insets.top, right - left, max(0, size.height - insets.top - insets.bottom))
         }
     }
 
@@ -51,6 +51,70 @@ struct FloatingTabBarLayout {
         let second = itemFrames[upper]
         let frame = NSMakeRect(first.minX + (second.minX - first.minX) * progress, first.minY, first.width + (second.width - first.width) * progress, first.height)
         return lifted ? frame.insetBy(dx: nativeLens ? -10 : -8, dy: -8) : frame
+    }
+}
+
+extension InterfaceStyle.TabBar {
+    var floats: Bool {
+        if case .floating = placement {
+            return true
+        }
+        return false
+    }
+
+    func barFrame(in size: NSSize) -> NSRect {
+        switch placement {
+        case .floating:
+            return FloatingTabBarLayout.frame(in: size)
+        case let .docked(height):
+            return NSMakeRect(0, max(0, size.height - height), size.width, height)
+        }
+    }
+
+    var coveredBottomHeight: CGFloat {
+        switch placement {
+        case .floating:
+            return FloatingTabBarLayout.height + FloatingTabBarLayout.bottomGap
+        case let .docked(height):
+            return height
+        }
+    }
+
+    var itemInsets: NSEdgeInsets {
+        switch placement {
+        case .floating:
+            let inset = FloatingTabBarLayout.innerInset
+            return NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
+        case .docked:
+            return NSEdgeInsets(top: .borderSize, left: 0, bottom: 0, right: 0)
+        }
+    }
+
+    var border: BorderType? {
+        switch placement {
+        case .floating:
+            return nil
+        case .docked:
+            return [.Top]
+        }
+    }
+
+    func background(_ theme: PresentationTheme) -> NSColor {
+        switch placement {
+        case .floating:
+            return .clear
+        case .docked:
+            return theme.colors.background
+        }
+    }
+
+    func cornerRadius(height: CGFloat) -> CGFloat {
+        switch placement {
+        case .floating:
+            return height / 2
+        case .docked:
+            return 0
+        }
     }
 }
 
@@ -122,9 +186,10 @@ public class TabBarView: View {
     }
     var didReorderTabs: () -> Void = {}
 
-    private let glass = LiquidGlassView(frame: .zero, cornerRadius: FloatingTabBarLayout.height / 2, tintAlpha: 0.15)
+    private let style = InterfaceStyle.current.tabBar
+    private lazy var glass: LiquidGlassView? = style.floats ? LiquidGlassView(frame: .zero, cornerRadius: FloatingTabBarLayout.height / 2, tintAlpha: 0.15) : nil
     private let selectionView = View()
-    private let liftedGlass = LiquidGlassView(frame: .zero, cornerRadius: 28, hasShadow: true, hasBorder: true, tintAlpha: 0.1)
+    private lazy var liftedGlass: LiquidGlassView? = style.floats ? LiquidGlassView(frame: .zero, cornerRadius: 28, hasShadow: true, hasBorder: true, tintAlpha: 0.1) : nil
     private var gesture: SelectionGesture?
     private var reorderGesture: SelectionGesture? {
         guard let gesture, gesture.reordersTabs, gesture.isDragging else {
@@ -155,7 +220,7 @@ public class TabBarView: View {
     private var displayOptionsObserver: NSObjectProtocol?
 
     private var itemLayout: FloatingTabBarLayout {
-        return FloatingTabBarLayout(size: bounds.size, count: tabs.count)
+        return FloatingTabBarLayout(size: bounds.size, count: tabs.count, insets: style.itemInsets)
     }
 
     var selectionFrame: NSRect {
@@ -172,14 +237,19 @@ public class TabBarView: View {
         autoresizingMask = []
         backgroundColor = .clear
         layer?.masksToBounds = false
-        glass.isEventLess = true
+        border = style.border
         selectionView.isEventLess = true
         selectionView.layer?.masksToBounds = false
-        liftedGlass.isEventLess = true
-        addSubview(glass)
+        if let glass {
+            glass.isEventLess = true
+            addSubview(glass)
+        }
         addSubview(selectionView)
-        selectionView.addSubview(liftedGlass)
-        liftedGlass.alphaValue = 0
+        if let liftedGlass {
+            liftedGlass.isEventLess = true
+            selectionView.addSubview(liftedGlass)
+            liftedGlass.alphaValue = 0
+        }
         updateLocalizationAndTheme(theme: presentation)
         glassSettingObserver = NotificationCenter.default.addObserver(forName: systemLiquidGlassDidChange, object: nil, queue: .main) { [weak self] _ in
             self?.updateLocalizationAndTheme(theme: presentation)
@@ -359,7 +429,7 @@ public class TabBarView: View {
 
     public override func updateLocalizationAndTheme(theme: PresentationTheme) {
         super.updateLocalizationAndTheme(theme: theme)
-        backgroundColor = .clear
+        backgroundColor = style.background(theme)
         selectionView.backgroundColor = theme.colors.text.withAlphaComponent(theme.colors.isDark ? 0.12 : 0.08)
         for (tab, control) in zip(tabs, itemControls) {
             updateMetadata(for: control, tab: tab)
@@ -390,8 +460,8 @@ public class TabBarView: View {
 
     private func updateLayout() {
         let modeChanged = updateLensMode()
-        glass.frame = bounds
-        glass.updateLayout(size: bounds.size, transition: .immediate)
+        glass?.frame = bounds
+        glass?.updateLayout(size: bounds.size, transition: .immediate)
         nativeLens?.frame = bounds
         updateItemFrames(transition: .immediate)
         if modeChanged {
@@ -469,6 +539,9 @@ public class TabBarView: View {
         control.layer?.zPosition = 1
         if #available(macOS 14.0, *) {
             control.clipsToBounds = false
+        }
+        guard style.floats else {
+            return
         }
         if nativeLens != nil, let glass = lensFactory() {
             pickup = glass
@@ -714,7 +787,7 @@ public class TabBarView: View {
                 control.isSelected = selected
                 tabs[index].setSelected(selected, for: icon, animated: animated)
             }
-            let scale: CGFloat = nativeLens == nil && selectionGesture != nil && selected && !reduceMotion ? 1.15 : 1
+            let scale: CGFloat = style.floats && nativeLens == nil && selectionGesture != nil && selected && !reduceMotion ? 1.15 : 1
             if contentScales[index] != scale, let layer = control.layer {
                 let previous = layer.presentation()?.transform ?? layer.transform
                 var transform = CATransform3DMakeTranslation(control.bounds.midX, control.bounds.midY, 0)
@@ -734,10 +807,10 @@ public class TabBarView: View {
 
     private func updateLens(transition: ContainedViewLayoutTransition) {
         let hidesRestingSelection = reorderGesture != nil && !reduceMotion()
-        selectionView.isHidden = tabs.isEmpty
+        selectionView.isHidden = tabs.isEmpty || !style.floats
         let selectionGesture = gesture.flatMap { $0.reordersTabs ? nil : $0 }
         let position = selectionGesture?.position ?? CGFloat(selectedIndex)
-        let lifted = selectionGesture != nil && !reduceMotion()
+        let lifted = style.floats && selectionGesture != nil && !reduceMotion()
         let frame = reorderGesture != nil && itemControls.indices.contains(selectedIndex)
             ? itemControls[selectedIndex].frame
             : itemLayout.selectionFrame(at: position, lifted: lifted, nativeLens: nativeLens != nil)
@@ -774,14 +847,16 @@ public class TabBarView: View {
             nativeLens.update(lensFrame: frame, interactionProgress: lifted ? 1 : 0, appearance: presentation.appearance, backingScale: window?.backingScaleFactor ?? System.backingScale, animation: animation, restingBlurRadius: 16, restingTintColor: selectionView.backgroundColor, restingVisibility: hidesRestingSelection ? 0 : 1, contentSources: sources)
             selectionView.layer?.removeAnimation(forKey: "opacity")
             selectionView.alphaValue = 0
-            liftedGlass.alphaValue = 0
+            liftedGlass?.alphaValue = 0
             return
         }
         transition.updateAlpha(view: selectionView, alpha: hidesRestingSelection ? 0 : 1)
-        transition.updateFrame(view: liftedGlass, frame: frame.size.bounds)
-        liftedGlass.cornerRadius = frame.height / 2
-        liftedGlass.updateLayout(size: frame.size, transition: transition)
-        transition.updateAlpha(view: liftedGlass, alpha: lifted ? 1 : 0)
+        if let liftedGlass {
+            transition.updateFrame(view: liftedGlass, frame: frame.size.bounds)
+            liftedGlass.cornerRadius = frame.height / 2
+            liftedGlass.updateLayout(size: frame.size, transition: transition)
+            transition.updateAlpha(view: liftedGlass, alpha: lifted ? 1 : 0)
+        }
     }
 
     private func updateLensMode() -> Bool {
@@ -858,7 +933,8 @@ public class TabBarView: View {
 
     public override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
-        guard !isHidden, NSBezierPath(roundedRect: bounds, xRadius: bounds.height / 2, yRadius: bounds.height / 2).contains(local), let index = itemIndex(at: local) else {
+        let radius = style.cornerRadius(height: bounds.height)
+        guard !isHidden, NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).contains(local), let index = itemIndex(at: local) else {
             return nil
         }
         return itemControls[index]

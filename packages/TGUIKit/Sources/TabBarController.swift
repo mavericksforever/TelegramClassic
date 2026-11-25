@@ -3,15 +3,18 @@ import AppKit
 
 private class TabBarViewController : View {
     let tabView:TabBarView
-    private let tabShadowView = EdgeEffectView()
+    private let style = InterfaceStyle.current.tabBar
+    private lazy var tabShadowView: EdgeEffectView? = style.floats ? EdgeEffectView() : nil
     private var shadowColor = presentation.colors.listBackground
 
-    
+
     required init(frame frameRect: NSRect) {
-        tabView = TabBarView(frame: FloatingTabBarLayout.frame(in: frameRect.size))
+        tabView = TabBarView(frame: InterfaceStyle.current.tabBar.barFrame(in: frameRect.size))
         super.init(frame: frameRect)
-        tabShadowView.isEventLess = true
-        addSubview(tabShadowView)
+        if let tabShadowView {
+            tabShadowView.isEventLess = true
+            addSubview(tabShadowView)
+        }
         addSubview(tabView)
         updateShadow()
     }
@@ -32,7 +35,7 @@ private class TabBarViewController : View {
     }
     
     func updateFrame(_ frame: NSRect, transition: ContainedViewLayoutTransition) {
-        transition.updateFrame(view: tabView, frame: FloatingTabBarLayout.frame(in: frame.size))
+        transition.updateFrame(view: tabView, frame: style.barFrame(in: frame.size))
         for subview in subviews where subview !== tabView && subview !== tabShadowView {
             transition.updateFrame(view: subview, frame: frame.size.bounds)
         }
@@ -40,10 +43,13 @@ private class TabBarViewController : View {
     }
 
     func addContentView(_ view: NSView) {
-        addSubview(view, positioned: .below, relativeTo: tabShadowView)
+        addSubview(view, positioned: .below, relativeTo: tabShadowView ?? tabView)
     }
 
     func updateShadow(transition: ContainedViewLayoutTransition = .immediate) {
+        guard let tabShadowView else {
+            return
+        }
         let minY = max(0, tabView.frame.minY - 24)
         let rect = NSRect(x: 0, y: minY, width: bounds.width, height: max(0, bounds.height - minY))
         transition.updateFrame(view: tabShadowView, frame: rect)
@@ -73,7 +79,7 @@ public class TabBarController: ViewController, TabViewDelegate {
         return genericView.tabView.selectedIndex
     }
     public var contentBottomInset: CGFloat {
-        return genericView.tabView.isHidden ? 0 : FloatingTabBarLayout.height + FloatingTabBarLayout.bottomGap
+        return genericView.tabView.isHidden ? 0 : InterfaceStyle.current.tabBar.coveredBottomHeight
     }
     
     public weak var current:ViewController? {
