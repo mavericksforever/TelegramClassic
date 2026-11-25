@@ -1169,6 +1169,7 @@ class AppDelegate: NSResponder, NSApplicationDelegate, NSUserNotificationCenterD
                             NetworkLab.startIfRequested(context: context.context, outputDirectory: URL(fileURLWithPath: self.containerUrl).appendingPathComponent("perf-lab"))
                             StoryMorphLab.startIfRequested(context: context.context, outputDirectory: URL(fileURLWithPath: self.containerUrl).appendingPathComponent("perf-lab"))
                             ChatListStoriesLab.startIfRequested(context: context.context, outputDirectory: URL(fileURLWithPath: self.containerUrl).appendingPathComponent("perf-lab"))
+                            ChatListSnapshotLab.startIfRequested(outputDirectory: URL(fileURLWithPath: self.containerUrl).appendingPathComponent("perf-lab"))
                             #endif
                             if let executeUrlAfterLogin = self.executeUrlAfterLogin {
                                 self.executeUrlAfterLogin = nil

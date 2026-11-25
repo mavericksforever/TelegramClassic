@@ -263,3 +263,12 @@ tools/perflab/run.sh chat-navigation floatmut -PerfLabScenarios floatparity -Per
 
 The `census` scenario reports `censusDrawingViews`, `censusDrawingMPixels` (backing pixels of visible views on the drawing path, i.e. views with a bitmap backing store) and `censusDrawingClasses` (kilopixels per class). The `rowbacking` scenario that compared table rows with and without a backing store is parked with its patch in `evidence/2026-10-19-table-row-backing-parked`.
 
+## Chat list snapshot lab
+
+`-PerfLab chatlist-snapshots` captures the main window over the real chat list, to check how the list, the tab bar and the swipe actions look in the current interface style. Scenarios: `list` (the window as it is), `swipe-left` and `swipe-right` (the swipe actions of one row), and `saved`, which opens Saved Messages (the account's own chat) the way a click on its row does and captures the window after `-PerfLabOpenWait` seconds (default 3). `saved` is the only scenario that opens a chat and is not in the default list. A swipe scenario drives the row through `ChatListRowView.handleRevealSwipe`, the same entry point the window's swipe handler uses; it bypasses the window's scroll-event routing and the chat list's own gates in that handler (compact layout, the left-swipe mode filter, closing other open rows). It captures the window after each drag distance in `-PerfLabSwipeDeltas` (default `70,120,300` pt) and once more after the gesture is released as cancelled, then closes the row; a cancelled release never runs a swipe action. `-PerfLabSwipeRow` is the zero-based index of the row among the visible rows that have swipe actions (default 1, the second such row), `-PerfLabSwipeWait` is the pause before each capture (default 0.8 s). Every capture is saved as `chatlist-snapshots-<label>-<scenario>-<step>.png` next to the report, and its entry carries the path in `snapshot`.
+
+```sh
+tools/perflab/run.sh chatlist-snapshots classic
+tools/perflab/run.sh chatlist-snapshots armed -PerfLabScenarios swipe-right -PerfLabSwipeDeltas 300 -PerfLabSwipeRow 2
+```
+

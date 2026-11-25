@@ -10,7 +10,7 @@ from pathlib import Path
 LAB_MARKERS = re.compile(
     r"PerfLab|NetworkLab|EmojiPanelLab|GifPanelLab|ScreenCaptureLab|"
     r"CallVideoLab|PeerCallLab|VideoPlayerLab|ChatNavigationLab|PeerMediaLab|"
-    r"UniqueGiftLab|StoryMorphLab|ChatListStoriesLab"
+    r"UniqueGiftLab|StoryMorphLab|ChatListStoriesLab|ChatListSnapshotLab"
 )
 MACH_O_MAGICS = {
     bytes.fromhex(value)
